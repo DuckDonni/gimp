@@ -54,6 +54,7 @@
 
 #include "gimp-intl.h"
 
+#include "testdock.h"
 
 GimpContainer *global_recent_docks = NULL;
 
@@ -442,6 +443,10 @@ static const GimpDialogFactoryEntry entries[] =
             N_("Tool Preset Editor"), NULL, GIMP_ICON_TOOL_PRESET,
             GIMP_HELP_TOOL_PRESET_EDITOR_DIALOG,
             dialogs_tool_preset_editor_get, 0, TRUE),
+  DOCKABLE ("testdock",
+            N_("Test Dock"), NULL, GIMP_ICON_DIALOG_LAYERS,
+            GIMP_HELP_LAYER_DIALOG,
+            testdock_new, 0, TRUE),
 
   /*  image windows  */
   IMAGE_WINDOW ("gimp-empty-image-window",
