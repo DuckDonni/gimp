@@ -303,7 +303,7 @@ const GimpStringActionEntry dialogs_dockable_actions[] =
     ,
     { "dialogs-testdock", GIMP_ICON_TOOL_PRESET,
     NC_("dialogs-action", "_Test Dockable"),
-    NC_("dialogs-action", "Test Dockable"),
+    NC_("dialogs-action", "_Test Dockable"),
     { NULL },
     NC_("dialogs-action", "Open the test dockable"),
     "testdock",

@@ -14,6 +14,7 @@ testdock_new (GimpDialogFactory *factory,
   GtkWidget *box;
   GtkWidget *label;
 
+  g_message ("testdock_new: entering");
 
   /* Avoid unused parameter warnings */
   (void) factory;
@@ -21,12 +22,18 @@ testdock_new (GimpDialogFactory *factory,
   (void) ui_manager;
   (void) view_size;
 
+  g_message ("testdock_new: creating box");
   box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 6);
-  label = gtk_label_new (_("This is Test Dock"));
 
+  g_message ("testdock_new: creating label");
+  label = gtk_label_new ("This is Test Dock");
+
+  g_message ("testdock_new: packing label");
   gtk_box_pack_start (GTK_BOX (box), label, TRUE, TRUE, 0);
+
+  g_message ("testdock_new: showing all");
   gtk_widget_show_all (box);
 
-
+  g_message ("testdock_new: returning box");
   return box;
 }
