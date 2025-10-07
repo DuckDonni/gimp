@@ -265,7 +265,7 @@ libappwidgets_sources = [
   'gimpwidgets-utils.c',
   'gimpwindow.c',
   'gimpwindowstrategy.c',
-
+  'testdock.c',
   'widgets-enums.c',
   stamp_widgets_enums,
 

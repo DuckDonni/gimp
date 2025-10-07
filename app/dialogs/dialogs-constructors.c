@@ -65,6 +65,7 @@
 #include "widgets/gimptoolpreseteditor.h"
 #include "widgets/gimpundoeditor.h"
 #include "widgets/gimppathtreeview.h"
+#include "widgets/testdock.h"
 
 #include "display/gimpcursorview.h"
 #include "display/gimpnavigationeditor.h"
@@ -914,4 +915,14 @@ dialogs_tool_preset_editor_get (GimpDialogFactory *factory,
 {
   return gimp_tool_preset_editor_new (context,
                                       menus_get_global_menu_factory (context->gimp));
+}
+
+GtkWidget *
+dialogs_test_dock_get (GimpDialogFactory *factory,
+                       GimpContext       *context,
+                       GimpUIManager     *ui_manager,
+                       gint               view_size)
+{
+  return test_dock_new (context,
+                        menus_get_global_menu_factory (context->gimp));
 }

@@ -53,7 +53,6 @@ libappdialogs_sources = [
   'scale-dialog.c',
   'stroke-dialog.c',
   'template-options-dialog.c',
-  'testdock.c',
   'tips-dialog.c',
   'tips-parser.c',
   'user-install-dialog.c',
