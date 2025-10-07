@@ -1,7 +1,8 @@
 {
   "files.associations": {
     "gimpwidgets.h": "c",
-    "gimpcursorview.h": "c"
+    "gimpcursorview.h": "c",
+    "widgets-types.h": "c"
   },
   "C_Cpp_Runner.msvcBatchPath": ""
 }

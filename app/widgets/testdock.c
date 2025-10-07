@@ -15,7 +15,7 @@
 #include "gimpdataeditor.h"
 #include "gimpuimanager.h"
 
-#include "gimp-intl.h"  // Move this to be with other GIMP includes
+#include "gimp-intl.h"
 
 #include "testdock.h"
 
@@ -26,10 +26,6 @@ static void   test_dock_set_data          (GimpDataEditor     *editor,
                                           GimpData           *data);
 static void   test_dock_set_context       (GimpDocked         *docked,
                                           GimpContext        *context);
-
-/* Button click handler */
-static void   test_dock_button_clicked    (GtkWidget         *widget,
-                                          TestDock          *dock);
 
 G_DEFINE_TYPE_WITH_CODE (TestDock, test_dock, GIMP_TYPE_DATA_EDITOR,
                          G_IMPLEMENT_INTERFACE (GIMP_TYPE_DOCKED,
@@ -64,26 +60,8 @@ test_dock_docked_iface_init (GimpDockedInterface *iface)
 static void
 test_dock_init (TestDock *dock)
 {
-  // Remove the unused data_editor variable
-  /* Create main container */
-  dock->main_box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 6);
-  gtk_container_add (GTK_CONTAINER (dock), dock->main_box);
-  gtk_widget_show (dock->main_box);
-
-  /* Add a label */
-  dock->label = gtk_label_new (_("This is a test dock!"));
-  gtk_box_pack_start (GTK_BOX (dock->main_box), dock->label, FALSE, FALSE, 0);
-  gtk_widget_show (dock->label);
-
-  /* Add a button */
-  dock->button = gtk_button_new_with_label (_("Click Me!"));
-  gtk_box_pack_start (GTK_BOX (dock->main_box), dock->button, FALSE, FALSE, 0);
-  gtk_widget_show (dock->button);
-
-  /* Connect button signal */
-  g_signal_connect (dock->button, "clicked",
-                    G_CALLBACK (test_dock_button_clicked),
-                    dock);
+  /* This function is now empty - creating a completely blank dock */
+  /* All UI elements (main_box, label, button) have been removed */
 }
 
 static void
@@ -109,19 +87,10 @@ static void
 test_dock_set_context (GimpDocked  *docked,
                        GimpContext *context)
 {
-  // Remove the unused dock variable
   /* Chain up to parent implementation */
   parent_docked_iface->set_context (docked, context);
 
   /* Handle any context-specific updates here */
-}
-
-static void
-test_dock_button_clicked (GtkWidget *widget,
-                          TestDock  *dock)
-{
-  /* Simple action when button is clicked */
-  gtk_label_set_text (GTK_LABEL (dock->label), _("Button was clicked!"));
 }
 
 /* Public functions */
@@ -132,10 +101,15 @@ test_dock_new (GimpContext     *context,
 {
   g_return_val_if_fail (GIMP_IS_CONTEXT (context), NULL);
 
-  return g_object_new (TEST_TYPE_DOCK,
-                       "menu-factory",    menu_factory,
-                       "menu-identifier", "<TestDock>",
-                       "ui-path",         "/test-dock-popup",
-                       "context",         context,
-                       NULL);
+  GtkWidget *dock = g_object_new (TEST_TYPE_DOCK,
+                                  "menu-factory",    menu_factory,
+                                  "menu-identifier", "<TestDock>",
+                                  "ui-path",         "/test-dock-popup",
+                                  "context",         context,
+                                  NULL);
+
+  g_printerr("[test_dock_new] created %p type=%s\n",
+             dock, dock ? G_OBJECT_TYPE_NAME (dock) : "NULL");
+
+  return dock;
 }

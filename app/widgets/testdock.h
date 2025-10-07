@@ -18,11 +18,7 @@ typedef struct _TestDock        TestDock;
 struct _TestDock
 {
   GimpDataEditor  parent_instance;
-
-  /* Add your custom widgets here */
-  GtkWidget      *main_box;
-  GtkWidget      *label;
-  GtkWidget      *button;
+  /* All UI elements removed - this is now a blank dock */
 };
 
 struct _TestDockClass

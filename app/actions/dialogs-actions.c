@@ -307,7 +307,7 @@ const GimpStringActionEntry dialogs_dockable_actions[] =
       NC_("dialogs-action", "_Test Dock"),
       { NULL },
       NC_("dialogs-action", "Open the Test Dock dialog"),
-      "testdock",  /* this matches your widget factory name in dialogs.c */
+      "test-dock",  /* this matches your widget factory name in dialogs.c */
       NULL }
 
     // {"dialogs-testdock",GIMP_ICON_TOOL_PRESET,

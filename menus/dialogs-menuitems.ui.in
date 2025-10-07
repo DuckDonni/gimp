@@ -33,5 +33,5 @@
   <item><attribute name="action">@GROUP@.dialogs-templates</attribute></item>
   <item><attribute name="action">@GROUP@.dialogs-error-console</attribute></item>
   <item><attribute name="action">@GROUP@.dialogs-dashboard</attribute></item>
-  <item><attribute name="action">@GROUP@.dialogs-testdock</attribute></item>
+  <item><attribute name="action">@GROUP@.dialogs-test-dock</attribute></item>
 </section>

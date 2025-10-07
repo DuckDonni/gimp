@@ -268,7 +268,7 @@ libappwidgets_sources = [
   'testdock.c',
   'widgets-enums.c',
   stamp_widgets_enums,
-
+  
   gimp_language_store_data,
 
   appcoremarshal[1],

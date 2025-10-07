@@ -923,6 +923,16 @@ dialogs_test_dock_get (GimpDialogFactory *factory,
                        GimpUIManager     *ui_manager,
                        gint               view_size)
 {
-  return test_dock_new (context,
-                        menus_get_global_menu_factory (context->gimp));
+  g_printerr("[dialogs_test_dock_get] called with context=%p\n", context);
+
+  GtkWidget *w = test_dock_new (context,
+                                menus_get_global_menu_factory (context->gimp));
+
+  if (w)
+    g_printerr("[dialogs_test_dock_get] returning %p of type %s\n",
+               w, G_OBJECT_TYPE_NAME (w));
+  else
+    g_printerr("[dialogs_test_dock_get] returning NULL\n");
+
+  return w;
 }

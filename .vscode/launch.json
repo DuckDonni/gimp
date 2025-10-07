@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": true,
-      "cwd": "c:/Users/jonah/Documents/GitHub/gimp/app/widgets",
-      "program": "c:/Users/jonah/Documents/GitHub/gimp/app/widgets/build/Debug/outDebug",
+      "cwd": "c:/Users/jonah/Documents/GitHub/gimp",
+      "program": "c:/Users/jonah/Documents/GitHub/gimp/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
