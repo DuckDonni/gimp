@@ -446,15 +446,7 @@ static const GimpDialogFactoryEntry entries[] =
   DOCKABLE ("test-dock",
             N_("Test Dock"), NULL, GIMP_ICON_TOOL_PRESET,
             GIMP_HELP_BRUSH_EDITOR_DIALOG, 
-            dialogs_test_dock_get, 0, TRUE),          
-  // DOCKABLE ("testdock",
-  //           N_("Test Dock"), NULL, GIMP_ICON_DIALOG_INFORMATION,
-  //           GIMP_HELP_LAYER_DIALOG,
-  //           testdock_new, 0, TRUE),
-  // DOCKABLE ("testdock",
-  //           N_("Test Dock"), NULL, GIMP_ICON_DIALOG_LAYERS,
-  //           GIMP_HELP_LAYER_DIALOG,
-  //           testdock_new, 0, TRUE),
+            dialogs_test_dock_get, 0, TRUE),   
 
   /*  image windows  */
   IMAGE_WINDOW ("gimp-empty-image-window",

@@ -1,7 +1,7 @@
 #ifndef __TEST_DOCK_H__
 #define __TEST_DOCK_H__
 
-#include "gimpdataeditor.h"
+#include "gimpeditor.h"
 
 G_BEGIN_DECLS
 
@@ -12,18 +12,17 @@ G_BEGIN_DECLS
 #define TEST_IS_DOCK_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), TEST_TYPE_DOCK))
 #define TEST_DOCK_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), TEST_TYPE_DOCK, TestDockClass))
 
-typedef struct _TestDockClass   TestDockClass;
 typedef struct _TestDock        TestDock;
+typedef struct _TestDockClass   TestDockClass;
 
 struct _TestDock
 {
-  GimpDataEditor  parent_instance;
-  /* All UI elements removed - this is now a blank dock */
+  GimpEditor  parent_instance;
 };
 
 struct _TestDockClass
 {
-  GimpDataEditorClass  parent_class;
+  GimpEditorClass  parent_class;
 };
 
 GType       test_dock_get_type (void) G_GNUC_CONST;

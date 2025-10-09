@@ -307,24 +307,8 @@ const GimpStringActionEntry dialogs_dockable_actions[] =
       NC_("dialogs-action", "_Test Dock"),
       { NULL },
       NC_("dialogs-action", "Open the Test Dock dialog"),
-      "test-dock",  /* this matches your widget factory name in dialogs.c */
+      "test-dock", 
       NULL }
-
-    // {"dialogs-testdock",GIMP_ICON_TOOL_PRESET,
-    // NC_("dialogs-action", "_Test Dockable"),
-    // NC_("dialogs-action", "_Test Dockable"),
-    // { NULL },
-    // NC_("dialogs-action", "Open the test dockable"),
-    // "testdock",
-    // GIMP_HELP_TOOL_PRESET_EDITOR_DIALOG }
-    // ,
-    // { "dialogs-testdock", GIMP_ICON_TOOL_PRESET,
-    // NC_("dialogs-action", "_Test Dockable"),
-    // NC_("dialogs-action", "_Test Dockable"),
-    // { NULL },
-    // NC_("dialogs-action", "Open the test dockable"),
-    // "testdock",
-    // GIMP_HELP_TOOL_PRESET_EDITOR_DIALOG }
 };
 
 gint n_dialogs_dockable_actions = G_N_ELEMENTS (dialogs_dockable_actions);
