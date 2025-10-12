@@ -65,7 +65,7 @@
 #include "widgets/gimptoolpreseteditor.h"
 #include "widgets/gimpundoeditor.h"
 #include "widgets/gimppathtreeview.h"
-#include "widgets/testdock.h"
+#include "widgets/gimpstyluseditor.h"
 
 #include "display/gimpcursorview.h"
 #include "display/gimpnavigationeditor.h"
@@ -918,21 +918,15 @@ dialogs_tool_preset_editor_get (GimpDialogFactory *factory,
 }
 
 GtkWidget *
-dialogs_test_dock_get (GimpDialogFactory *factory,
+dialogs_stylus_editor_get (GimpDialogFactory *factory,
                        GimpContext       *context,
                        GimpUIManager     *ui_manager,
                        gint               view_size)
 {
-  g_printerr("[dialogs_test_dock_get] called with context=%p\n", context);
 
-  GtkWidget *w = test_dock_new (context,
+  GtkWidget *w = stylus_editor_new (context,
                                 menus_get_global_menu_factory (context->gimp));
 
-  if (w)
-    g_printerr("[dialogs_test_dock_get] returning %p of type %s\n",
-               w, G_OBJECT_TYPE_NAME (w));
-  else
-    g_printerr("[dialogs_test_dock_get] returning NULL\n");
 
   return w;
 }

@@ -214,6 +214,7 @@ libappwidgets_sources = [
   'gimpsizebox.c',
   'gimpstringaction.c',
   'gimpstrokeeditor.c',
+  'gimpstyluseditor.c',
   'gimpsymmetryeditor.c',
   'gimptagentry.c',
   'gimptagpopup.c',
@@ -265,7 +266,6 @@ libappwidgets_sources = [
   'gimpwidgets-utils.c',
   'gimpwindow.c',
   'gimpwindowstrategy.c',
-  'testdock.c',
   'widgets-enums.c',
   stamp_widgets_enums,
   

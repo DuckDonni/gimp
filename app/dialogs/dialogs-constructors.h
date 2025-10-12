@@ -306,7 +306,7 @@ GtkWidget * dialogs_tool_preset_editor_get      (GimpDialogFactory *factory,
                                                  GimpContext       *context,
                                                  GimpUIManager     *ui_manager,
                                                  gint               view_size);
-GtkWidget * dialogs_test_dock_get               (GimpDialogFactory *factory,
+GtkWidget * dialogs_stylus_editor_get           (GimpDialogFactory *factory,
                                                 GimpContext       *context,
                                                 GimpUIManager     *ui_manager,
                                                 gint               view_size);

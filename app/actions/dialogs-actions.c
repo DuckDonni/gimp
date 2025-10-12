@@ -31,7 +31,6 @@
 #include "widgets/gimphelp-ids.h"
 #include "widgets/gimpsessioninfo.h"
 #include "widgets/gimptoolbox.h"
-//#include "widgets/testdock.h"
 
 #include "display/gimpimagewindow.h"
 
@@ -302,12 +301,12 @@ const GimpStringActionEntry dialogs_dockable_actions[] =
     "gimp-dashboard",
     GIMP_HELP_ERRORS_DIALOG }
     ,
-    { "dialogs-test-dock", NULL,
-      NC_("dialogs-action", "_Test Dock Dialog"),
-      NC_("dialogs-action", "_Test Dock"),
+    { "dialogs-stylus-editor", NULL,
+      NC_("dialogs-action", "_Stylus Editor Dialog"),
+      NC_("dialogs-action", "_Stylus Editor"),
       { NULL },
-      NC_("dialogs-action", "Open the Test Dock dialog"),
-      "test-dock", 
+      NC_("dialogs-action", "Open the Stylus Editor"),
+      "stylus-editor", 
       NULL }
 };
 
