@@ -452,10 +452,6 @@ gimp_dialog_factory_dialog_new_internal (GimpDialogFactory *factory,
 
   entry = gimp_dialog_factory_find_entry (factory, identifier);
 
-  g_print ("factory entry for '%s' %s, dockable=%d",
-    identifier,
-    entry ?"FOUND":"MISSING",
-    entry? entry->dockable :-1);
 
   if (! entry)
     {
@@ -547,10 +543,6 @@ gimp_dialog_factory_dialog_new_internal (GimpDialogFactory *factory,
                                                   factory->p->context,
                                                   ui_manager,
                                                   view_size);
-
-      g_print ("constructor returned %s",
-      dialog? (GIMP_IS_DOCKABLE(dialog) ? "GimpDockable" :
-      (gtk_widget_is_toplevel(dialog) ? "toplevel" : "non-dockable widget")): "NULL");
 
       if (dialog)
         {

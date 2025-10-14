@@ -67,7 +67,7 @@ dialogs_create_dockable_cmd_callback (GimpAction *action,
   return_if_no_widget (widget, data);
 
   identifier = g_variant_get_string (value, NULL);
-  g_print ("identifier: %s\n", identifier);
+  
   if (identifier)
     gimp_window_strategy_show_dockable_dialog (GIMP_WINDOW_STRATEGY (gimp_get_window_strategy (gimp)),
                                                gimp,
