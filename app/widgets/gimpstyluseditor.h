@@ -19,9 +19,9 @@ struct _StylusEditor
 {
   GimpEditor parent_instance;
 
-  // Slider Components
   GtkAdjustment *slider_adjustment;
   GtkWidget     *slider_scale;
+  GimpContext   *context;
 };
 
 struct _StylusEditorClass
