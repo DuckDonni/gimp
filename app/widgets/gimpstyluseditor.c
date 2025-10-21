@@ -20,6 +20,7 @@
 #include "gimpdevicemanager.h"
 #include "gimpdeviceinfo.h"
 #include "gimpdeviceinfo-coords.h"
+#include "gimpcurveview.h"
 
 #include "gimp-intl.h"
 
@@ -74,6 +75,7 @@ stylus_editor_init (StylusEditor *editor)
   editor->slider_scale      = NULL;
   editor->natural_curve_button = NULL;
   editor->pressure_label = NULL;
+  editor->curve_view = NULL;
   editor->context = NULL;
   editor->natural_curve_enabled = FALSE;
 }
@@ -159,6 +161,12 @@ stylus_editor_constructed (GObject *object)
   g_signal_connect (editor->calibrate_button, "clicked",
                     G_CALLBACK (stylus_editor_calibrate_clicked), editor);
 
+  /* Add Pressure Curve view */
+  editor->curve_view = gimp_curve_view_new ();
+  gtk_widget_set_size_request (editor->curve_view, 200, 200);
+  gtk_box_pack_start (GTK_BOX (box_in_frame), editor->curve_view, FALSE, FALSE, 0);
+  gtk_widget_show (editor->curve_view);
+
   /* Start timer to update device info */
   g_timeout_add (100, stylus_editor_update_pressure, editor);
 
@@ -234,6 +242,13 @@ stylus_editor_natural_curve_clicked (GtkButton *button, StylusEditor *editor)
     {
       /* Reset to linear 1:1 curve */
       gimp_curve_reset (pressure_curve, FALSE);
+    }
+  
+  /* Update the curve view to show the modified curve */
+  if (editor->curve_view)
+    {
+      gimp_curve_view_set_curve (GIMP_CURVE_VIEW (editor->curve_view), 
+                                pressure_curve, NULL);
     }
   
   g_signal_emit (editor, stylus_editor_signals[NATURAL_CURVE_REQUESTED], 0);
@@ -336,8 +351,28 @@ stylus_editor_new (GimpContext *context, GimpMenuFactory *menu_factory)
   if (STYLUS_EDITOR (dock))
     {
       StylusEditor *editor = STYLUS_EDITOR (dock);
+      GimpDeviceManager *device_manager;
+      GimpDeviceInfo *device_info;
+      GimpCurve *pressure_curve;
+      
       editor->context = context;
       g_object_ref (editor->context);
+      
+      /* Initialize curve view with current device's pressure curve */
+      device_manager = gimp_devices_get_manager (context->gimp);
+      if (device_manager)
+        {
+          device_info = gimp_device_manager_get_current_device (device_manager);
+          if (device_info)
+            {
+              pressure_curve = gimp_device_info_get_curve (device_info, GDK_AXIS_PRESSURE);
+              if (pressure_curve && editor->curve_view)
+                {
+                  gimp_curve_view_set_curve (GIMP_CURVE_VIEW (editor->curve_view), 
+                                            pressure_curve, NULL);
+                }
+            }
+        }
     }
 
   return dock;

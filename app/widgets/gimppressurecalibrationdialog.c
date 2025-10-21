@@ -118,7 +118,8 @@ gimp_pressure_calibration_dialog_init (GimpPressureCalibrationDialog *dialog)
 
   /* Instructions label */
   dialog->status_label = gtk_label_new (_("Click 'Start Recording' then draw naturally on the scratchpad below.\n"
-                                         "Use your normal drawing pressure and make several strokes."));
+                                         "Use your normal drawing pressure and make several strokes.\n"
+                                         "The curve will update in the Stylus Editor panel."));
   gtk_label_set_line_wrap (GTK_LABEL (dialog->status_label), TRUE);
   gtk_label_set_xalign (GTK_LABEL (dialog->status_label), 0.0);
   gtk_box_pack_start (GTK_BOX (main_vbox), dialog->status_label, FALSE, FALSE, 0);
@@ -277,14 +278,10 @@ drawing_area_motion_notify (GtkWidget      *widget,
   cairo_t *cr;
   gdouble pressure;
   GtkAllocation allocation;
-  GdkDevice *device;
 
   if (!dialog->recording || !dialog->is_drawing)
     return FALSE;
 
-  /* Get pressure directly from the event */
-  device = gdk_event_get_source_device ((GdkEvent *) event);
-  
   /* Try to get pressure from the event axis */
   if (!gdk_event_get_axis ((GdkEvent *) event, GDK_AXIS_PRESSURE, &pressure))
     {

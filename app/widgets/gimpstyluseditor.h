@@ -32,6 +32,9 @@ struct _StylusEditor
   // Pressure display
   GtkWidget     *pressure_label;
   
+  // Curve view widget
+  GtkWidget     *curve_view;
+  
   // Context for device access
   GimpContext   *context;
   
