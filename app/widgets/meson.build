@@ -184,6 +184,7 @@ libappwidgets_sources = [
   'gimppolar.c',
   'gimppopup.c',
   'gimpprefsbox.c',
+  'gimppressurecalibrationdialog.c',
   'gimpprocedureaction.c',
   'gimpprogressbox.c',
   'gimpprogressdialog.c',

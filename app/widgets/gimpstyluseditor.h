@@ -22,11 +22,29 @@ struct _StylusEditor
   // Slider Components
   GtkAdjustment *slider_adjustment;
   GtkWidget     *slider_scale;
+
+  // Natural Curve button
+  GtkWidget     *natural_curve_button;
+  
+  // Calibrate button
+  GtkWidget     *calibrate_button;
+  
+  // Pressure display
+  GtkWidget     *pressure_label;
+  
+  // Context for device access
+  GimpContext   *context;
+  
+  // Natural curve toggle state
+  gboolean      natural_curve_enabled;
 };
 
 struct _StylusEditorClass
 {
   GimpEditorClass parent_class;
+
+  /* Emitted when Natural Curve is requested by user */
+  void (* natural_curve_requested) (StylusEditor *editor);
 };
 
 GType stylus_editor_get_type (void) G_GNUC_CONST;
