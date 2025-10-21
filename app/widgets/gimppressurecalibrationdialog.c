@@ -45,6 +45,8 @@
  * =============================================== */
 static void gimp_pressure_calibration_dialog_finalize (GObject *object);
 static gboolean drawing_area_draw (GtkWidget *widget, cairo_t *cr, GimpPressureCalibrationDialog *dialog);
+static gboolean drawing_area_button_press (GtkWidget *widget, GdkEventButton *event, GimpPressureCalibrationDialog *dialog);
+static gboolean drawing_area_button_release (GtkWidget *widget, GdkEventButton *event, GimpPressureCalibrationDialog *dialog);
 static gboolean drawing_area_motion_notify (GtkWidget *widget, GdkEventMotion *event, GimpPressureCalibrationDialog *dialog);
 static void start_button_clicked (GtkButton *button, GimpPressureCalibrationDialog *dialog);
 static void apply_button_clicked (GtkButton *button, GimpPressureCalibrationDialog *dialog);
@@ -101,6 +103,7 @@ gimp_pressure_calibration_dialog_init (GimpPressureCalibrationDialog *dialog)
   dialog->surface = NULL;
   dialog->last_x = 0.0;
   dialog->last_y = 0.0;
+  dialog->is_drawing = FALSE;
 
   gtk_window_set_title (GTK_WINDOW (dialog), _("Pressure Calibration"));
   gtk_window_set_default_size (GTK_WINDOW (dialog), 500, 400);
@@ -140,6 +143,10 @@ gimp_pressure_calibration_dialog_init (GimpPressureCalibrationDialog *dialog)
 
   g_signal_connect (dialog->drawing_area, "draw",
                    G_CALLBACK (drawing_area_draw), dialog);
+  g_signal_connect (dialog->drawing_area, "button-press-event",
+                   G_CALLBACK (drawing_area_button_press), dialog);
+  g_signal_connect (dialog->drawing_area, "button-release-event",
+                   G_CALLBACK (drawing_area_button_release), dialog);
   g_signal_connect (dialog->drawing_area, "motion-notify-event",
                    G_CALLBACK (drawing_area_motion_notify), dialog);
 
@@ -236,39 +243,54 @@ drawing_area_draw (GtkWidget *widget,
 }
 
 static gboolean
+drawing_area_button_press (GtkWidget      *widget,
+                           GdkEventButton *event,
+                           GimpPressureCalibrationDialog *dialog)
+{
+  if (!dialog->recording)
+    return FALSE;
+
+  /* Start a new stroke */
+  dialog->is_drawing = TRUE;
+  dialog->last_x = event->x;
+  dialog->last_y = event->y;
+
+  return TRUE;
+}
+
+static gboolean
+drawing_area_button_release (GtkWidget      *widget,
+                             GdkEventButton *event,
+                             GimpPressureCalibrationDialog *dialog)
+{
+  /* End the current stroke */
+  dialog->is_drawing = FALSE;
+
+  return TRUE;
+}
+
+static gboolean
 drawing_area_motion_notify (GtkWidget      *widget,
                             GdkEventMotion *event,
                             GimpPressureCalibrationDialog *dialog)
 {
-  GimpDeviceManager *device_manager;
-  GimpDeviceInfo *device_info;
-  GimpCoords coords;
-  GdkWindow *window;
   cairo_t *cr;
   gdouble pressure;
   GtkAllocation allocation;
+  GdkDevice *device;
 
-  if (!dialog->recording)
+  if (!dialog->recording || !dialog->is_drawing)
     return FALSE;
 
-  if (!dialog->context)
-    return FALSE;
-
-  /* Get current device pressure */
-  device_manager = gimp_devices_get_manager (dialog->context->gimp);
-  if (!device_manager)
-    return FALSE;
-
-  device_info = gimp_device_manager_get_current_device (device_manager);
-  if (!device_info)
-    return FALSE;
-
-  window = gtk_widget_get_window (widget);
-  if (!window)
-    return FALSE;
-
-  gimp_device_info_get_device_coords (device_info, window, &coords);
-  pressure = coords.pressure;
+  /* Get pressure directly from the event */
+  device = gdk_event_get_source_device ((GdkEvent *) event);
+  
+  /* Try to get pressure from the event axis */
+  if (!gdk_event_get_axis ((GdkEvent *) event, GDK_AXIS_PRESSURE, &pressure))
+    {
+      /* No pressure axis available, use default */
+      pressure = 0.5;
+    }
 
   /* Store pressure sample */
   g_array_append_val (dialog->pressure_samples, pressure);
@@ -285,9 +307,6 @@ drawing_area_motion_notify (GtkWidget      *widget,
       cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
       cairo_paint (cr);
       cairo_destroy (cr);
-      
-      dialog->last_x = event->x;
-      dialog->last_y = event->y;
     }
 
   /* Draw stroke on surface */
@@ -303,6 +322,7 @@ drawing_area_motion_notify (GtkWidget      *widget,
   
   cairo_destroy (cr);
 
+  /* Update last position for next stroke segment */
   dialog->last_x = event->x;
   dialog->last_y = event->y;
 

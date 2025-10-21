@@ -57,6 +57,7 @@ struct _GimpPressureCalibrationDialog
   cairo_surface_t *surface;
   gdouble last_x;
   gdouble last_y;
+  gboolean is_drawing;  /* TRUE when pen is pressed down */
 };
 
 struct _GimpPressureCalibrationDialogClass
