@@ -48,6 +48,9 @@ struct _GimpPressureCalibrationDialog
 
   /* Context for device access */
   GimpContext *context;
+  
+  /* Target device captured when recording starts */
+  GimpDeviceInfo *target_device;
 
   /* Calibration state */
   gboolean recording;

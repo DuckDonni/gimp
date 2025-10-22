@@ -77,6 +77,7 @@ stylus_editor_init (StylusEditor *editor)
   editor->pressure_label = NULL;
   editor->curve_view = NULL;
   editor->context = NULL;
+  editor->last_active_device = NULL;
   editor->natural_curve_enabled = FALSE;
 }
 
@@ -206,49 +207,81 @@ stylus_editor_natural_curve_clicked (GtkButton *button, StylusEditor *editor)
                            _ ("Natural Curve: OFF (x1.0)"));
     }
   
-  /* Get the current device */
+  /* Get device manager to iterate through all devices */
   if (!editor->context)
-    return;
-    
+    {
+      g_print ("No context available.\n");
+      return;
+    }
+  
   device_manager = gimp_devices_get_manager (editor->context->gimp);
   if (!device_manager)
-    return;
+    {
+      g_print ("No device manager available.\n");
+      return;
+    }
+  
+  g_print ("\n=== Applying Natural Curve to ALL devices ===\n");
+  
+  /* Apply curve to ALL devices */
+  {
+    GimpContainer *container = GIMP_CONTAINER (device_manager);
+    GList *list;
     
-  device_info = gimp_device_manager_get_current_device (device_manager);
-  if (!device_info)
-    return;
+    for (list = GIMP_LIST (container)->queue->head; list; list = g_list_next (list))
+      {
+        device_info = GIMP_DEVICE_INFO (list->data);
+        
+        /* Get the device's pressure curve */
+        pressure_curve = gimp_device_info_get_curve (device_info, GDK_AXIS_PRESSURE);
+        if (!pressure_curve)
+          {
+            g_print ("  Skipping '%s' (no pressure curve)\n", gimp_object_get_name (device_info));
+            continue;
+          }
+        
+        g_print ("  Applying to device: %s\n", gimp_object_get_name (device_info));
+        
+        /* Modify the pressure curve */
+        if (editor->natural_curve_enabled)
+          {
+            /* Set curve to FREE mode so we can set individual samples */
+            gimp_curve_set_curve_type (pressure_curve, GIMP_CURVE_FREE);
+            
+            /* Map all values: output = input * 0.1 */
+            for (i = 0; i < 256; i++)
+              {
+                gdouble x = i / 255.0;
+                gdouble y = x * 0.1;  /* Multiply by 0.1 */
+                gimp_curve_set_curve (pressure_curve, x, y);
+              }
+          }
+        else
+          {
+            /* Reset to linear 1:1 curve */
+            gimp_curve_reset (pressure_curve, FALSE);
+          }
+      }
+  }
   
-  /* Get the device's pressure curve */
-  pressure_curve = gimp_device_info_get_curve (device_info, GDK_AXIS_PRESSURE);
-  if (!pressure_curve)
-    return;
-  
-  /* Modify the pressure curve */
   if (editor->natural_curve_enabled)
-    {
-      /* Set curve to FREE mode so we can set individual samples */
-      gimp_curve_set_curve_type (pressure_curve, GIMP_CURVE_FREE);
-      
-      /* Map all values: output = input * 0.1 */
-      for (i = 0; i < 256; i++)
-        {
-          gdouble x = i / 255.0;
-          gdouble y = x * 0.1;  /* Multiply by 0.1 */
-          gimp_curve_set_curve (pressure_curve, x, y);
-        }
-      
-    }
+    g_print ("Natural Curve ENABLED (x0.1) on all devices\n");
   else
-    {
-      /* Reset to linear 1:1 curve */
-      gimp_curve_reset (pressure_curve, FALSE);
-    }
+    g_print ("Natural Curve DISABLED (x1.0) on all devices\n");
   
-  /* Update the curve view to show the modified curve */
-  if (editor->curve_view)
+  g_print ("==========================================\n\n");
+  
+  /* Update the curve view to show the modified curve from the last active device */
+  if (editor->curve_view && editor->last_active_device)
     {
-      gimp_curve_view_set_curve (GIMP_CURVE_VIEW (editor->curve_view), 
-                                pressure_curve, NULL);
+      pressure_curve = gimp_device_info_get_curve (editor->last_active_device, GDK_AXIS_PRESSURE);
+      if (pressure_curve)
+        {
+          g_print ("Updating curve view widget...\n");
+          gimp_curve_view_set_curve (GIMP_CURVE_VIEW (editor->curve_view), 
+                                    pressure_curve, NULL);
+          g_print ("Curve view updated.\n");
+        }
     }
   
   g_signal_emit (editor, stylus_editor_signals[NATURAL_CURVE_REQUESTED], 0);
@@ -306,6 +339,9 @@ stylus_editor_update_pressure (gpointer data)
   device_info = gimp_device_manager_get_current_device (device_manager);
   if (!device_info)
     return TRUE;
+
+  /* Track the last active device (for targeting curve modifications) */
+  editor->last_active_device = device_info;
 
   /* Try to get a window from the editor widget itself */
   window = gtk_widget_get_window (GTK_WIDGET (editor));

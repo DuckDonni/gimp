@@ -38,11 +38,15 @@ struct _StylusEditor
   // Context for device access
   GimpContext   *context;
   
+  // Last device that was actively used (for targeting curve changes)
+  GimpDeviceInfo *last_active_device;
+  
   // Natural curve toggle state
   gboolean      natural_curve_enabled;
 };
 
 struct _StylusEditorClass
+
 {
   GimpEditorClass parent_class;
 

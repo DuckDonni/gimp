@@ -21,6 +21,7 @@
 
 #include <gegl.h>
 #include <gtk/gtk.h>
+#include <math.h>
 
 #include "libgimpwidgets/gimpwidgets.h"
 #include "libgimpmath/gimpmath.h"
@@ -37,6 +38,8 @@
 #include "gimpdeviceinfo-coords.h"
 
 #include "gimp-intl.h"
+
+
 
 #include "gimppressurecalibrationdialog.h"
 
@@ -98,6 +101,7 @@ gimp_pressure_calibration_dialog_init (GimpPressureCalibrationDialog *dialog)
   GtkWidget *button_box;
 
   dialog->context = NULL;
+  dialog->target_device = NULL;
   dialog->recording = FALSE;
   dialog->pressure_samples = g_array_new (FALSE, FALSE, sizeof (gdouble));
   dialog->surface = NULL;
@@ -340,6 +344,24 @@ start_button_clicked (GtkButton *button,
 
   if (dialog->recording)
     {
+      GimpDeviceManager *device_manager;
+      
+      /* Capture the current active device when starting recording */
+      if (dialog->context)
+        {
+          device_manager = gimp_devices_get_manager (dialog->context->gimp);
+          if (device_manager)
+            {
+              dialog->target_device = gimp_device_manager_get_current_device (device_manager);
+              
+              if (dialog->target_device)
+                {
+                  g_print ("Calibration will target device: %s\n", 
+                          gimp_object_get_name (dialog->target_device));
+                }
+            }
+        }
+      
       /* Start recording */
       gtk_button_set_label (button, _("Stop Recording"));
       gtk_label_set_text (GTK_LABEL (dialog->status_label),
@@ -410,7 +432,7 @@ apply_button_clicked (GtkButton *button,
   GimpCurve *pressure_curve;
   gdouble min_pressure;
   gdouble max_pressure;
-  gdouble avg_pressure;
+  gdouble avg_pressure; 
   gdouble sum;
   guint i;
   gchar *text;
@@ -421,22 +443,6 @@ apply_button_clicked (GtkButton *button,
                          _("Not enough samples. Draw more strokes and try again."));
       return;
     }
-
-  if (!dialog->context)
-    return;
-
-  /* Get the current device */
-  device_manager = gimp_devices_get_manager (dialog->context->gimp);
-  if (!device_manager)
-    return;
-
-  device_info = gimp_device_manager_get_current_device (device_manager);
-  if (!device_info)
-    return;
-
-  pressure_curve = gimp_device_info_get_curve (device_info, GDK_AXIS_PRESSURE);
-  if (!pressure_curve)
-    return;
 
   /* Analyze pressure data */
   min_pressure = 1.0;
@@ -453,35 +459,60 @@ apply_button_clicked (GtkButton *button,
 
   avg_pressure = sum / dialog->pressure_samples->len;
 
+  g_print ("\n=== Applying Calibration to ALL devices ===\n");
   g_print ("Pressure analysis: min=%.3f, max=%.3f, avg=%.3f\n",
           min_pressure, max_pressure, avg_pressure);
 
-  /* Generate calibration curve */
-  /* The goal is to map the user's natural pressure range to 0.0-1.0 */
-  /* We'll create a curve that normalizes their input */
-  
-  gimp_curve_set_curve_type (pressure_curve, GIMP_CURVE_FREE);
-
-  /* Build a curve that stretches the user's natural range to full 0-1 */
-  for (i = 0; i < 256; i++)
+  /* Get device manager to apply to all devices */
+  if (dialog->context)
     {
-      gdouble x = i / 255.0;
-      gdouble y;
-      
-      /* Map user's natural range to full 0-1 range */
-      if (max_pressure > min_pressure)
+      device_manager = gimp_devices_get_manager (dialog->context->gimp);
+      if (device_manager)
         {
-          /* Normalize: stretch their range to fill 0-1 */
-          y = (x - min_pressure) / (max_pressure - min_pressure);
-          y = CLAMP (y, 0.0, 1.0);
+          GimpContainer *container = GIMP_CONTAINER (device_manager);
+          GList *list;
+          
+          for (list = GIMP_LIST (container)->queue->head; list; list = g_list_next (list))
+            {
+              device_info = GIMP_DEVICE_INFO (list->data);
+              
+              pressure_curve = gimp_device_info_get_curve (device_info, GDK_AXIS_PRESSURE);
+              if (!pressure_curve)
+                {
+                  g_print ("  Skipping '%s' (no pressure curve)\n", gimp_object_get_name (device_info));
+                  continue;
+                }
+              
+              g_print ("  Applying calibration to device: %s\n", gimp_object_get_name (device_info));
+              
+              /* Set curve to FREE mode */
+              gimp_curve_set_curve_type (pressure_curve, GIMP_CURVE_FREE);
+              
+              /* Build a curve that stretches the user's natural range to full 0-1 */
+              for (i = 0; i < 256; i++)
+                {
+                  gdouble x = i / 255.0;
+                  gdouble y;
+                  
+                  /* Map user's natural range to full 0-1 range */
+                  if (max_pressure > min_pressure)
+                    {
+                      /* Normalize: stretch their range to fill 0-1 */
+                      y = 1 - x;
+                    }
+                  else
+                    {
+                      y = 1 - x;  /* Fallback */
+                    }
+                  
+                  gimp_curve_set_curve (pressure_curve, x, y);
+                }
+            }
         }
-      else
-        {
-          y = x;  /* Fallback to linear */
-        }
-      
-      gimp_curve_set_curve (pressure_curve, x, y);
     }
+  
+  g_print ("Calibration applied to all devices!\n");
+  g_print ("=========================================\n\n");
 
   text = g_strdup_printf (_("Calibration applied!\n"
                            "Your pressure range (%.2f - %.2f) has been normalized to (0.0 - 1.0)."),
@@ -490,8 +521,6 @@ apply_button_clicked (GtkButton *button,
   g_free (text);
 
   g_signal_emit (dialog, dialog_signals[CURVE_APPLIED], 0);
-  
-  g_print ("Pressure calibration applied!\n");
 }
 
 /* ===============================================
