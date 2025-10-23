@@ -536,7 +536,7 @@ apply_button_clicked (GtkButton *button,
                       y = CLAMP (y, 0.0, 1.0);
                       
                       /* Square it for more control in light pressure range */
-                      y = y * y;
+                      y = pow(y, 4.0);
                     }
                   else
                     {

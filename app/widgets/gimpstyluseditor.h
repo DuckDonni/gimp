@@ -23,7 +23,7 @@ struct _StylusEditor
   GtkAdjustment *slider_adjustment;
   GtkWidget     *slider_scale;
 
-  // Natural Curve button
+  // Reset Curve button
   GtkWidget     *natural_curve_button;
   
   // Calibrate button
@@ -46,9 +46,6 @@ struct _StylusEditor
   
   // Device that the curve view is locked to (usually the stylus)
   GimpDeviceInfo *curve_view_device;
-  
-  // Natural curve toggle state
-  gboolean      natural_curve_enabled;
 };
 
 struct _StylusEditorClass

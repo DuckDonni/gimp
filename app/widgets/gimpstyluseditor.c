@@ -34,6 +34,7 @@ static void stylus_editor_preset_changed (GtkComboBox *combo, StylusEditor *edit
 static void stylus_editor_natural_curve_clicked (GtkButton *button, StylusEditor *editor);
 static void stylus_editor_calibrate_clicked (GtkButton *button, StylusEditor *editor);
 static gboolean stylus_editor_update_pressure (gpointer data);
+static gboolean stylus_editor_curve_draw (GtkWidget *widget, cairo_t *cr, StylusEditor *editor);
 
 G_DEFINE_TYPE (StylusEditor, stylus_editor, GIMP_TYPE_EDITOR)
 
@@ -81,7 +82,6 @@ stylus_editor_init (StylusEditor *editor)
   editor->context = NULL;
   editor->last_active_device = NULL;
   editor->curve_view_device = NULL;
-  editor->natural_curve_enabled = FALSE;
 }
 
 static void
@@ -164,8 +164,8 @@ stylus_editor_constructed (GObject *object)
   g_signal_connect (editor->preset_combo, "changed",
                    G_CALLBACK (stylus_editor_preset_changed), editor);
 
-  /* Add Natural Curve button under the slider */
-  editor->natural_curve_button = gtk_button_new_with_label (_ ("Natural Curve: OFF (x1.0)"));
+  /* Add Reset Curve button under the slider */
+  editor->natural_curve_button = gtk_button_new_with_label (_ ("Reset Curve"));
   gtk_box_pack_start (GTK_BOX (box_in_frame), editor->natural_curve_button, FALSE, FALSE, 0);
   gtk_widget_show (editor->natural_curve_button);
 
@@ -184,6 +184,11 @@ stylus_editor_constructed (GObject *object)
   editor->curve_view = gimp_curve_view_new ();
   gtk_widget_set_size_request (editor->curve_view, 200, 200);
   gtk_widget_set_sensitive (editor->curve_view, FALSE);  /* Disable all user interaction */
+  
+  /* Connect custom draw handler for centered white axis labels */
+  g_signal_connect_after (editor->curve_view, "draw",
+                          G_CALLBACK (stylus_editor_curve_draw), editor);
+  
   gtk_box_pack_start (GTK_BOX (box_in_frame), editor->curve_view, FALSE, FALSE, 0);
   gtk_widget_show (editor->curve_view);
 
@@ -222,22 +227,6 @@ stylus_editor_natural_curve_clicked (GtkButton *button, StylusEditor *editor)
   GimpDeviceManager *device_manager;
   GimpDeviceInfo *device_info;
   GimpCurve *pressure_curve;
-  gint i;
-  
-  /* Toggle the natural curve state */
-  editor->natural_curve_enabled = !editor->natural_curve_enabled;
-  
-  /* Update button label */
-  if (editor->natural_curve_enabled)
-    {
-      gtk_button_set_label (GTK_BUTTON (editor->natural_curve_button), 
-                           _ ("Natural Curve: ON (x0.1)"));
-    }
-  else
-    {
-      gtk_button_set_label (GTK_BUTTON (editor->natural_curve_button), 
-                           _ ("Natural Curve: OFF (x1.0)"));
-    }
   
   /* Get device manager to iterate through all devices */
   if (!editor->context)
@@ -253,9 +242,9 @@ stylus_editor_natural_curve_clicked (GtkButton *button, StylusEditor *editor)
       return;
     }
   
-  g_print ("\n=== Applying Natural Curve to ALL devices ===\n");
+  g_print ("\n=== Resetting Pressure Curves to Linear (x1.0) ===\n");
   
-  /* Apply curve to ALL devices */
+  /* Reset curves for ALL devices */
   {
     GimpContainer *container = GIMP_CONTAINER (device_manager);
     GList *list;
@@ -272,35 +261,14 @@ stylus_editor_natural_curve_clicked (GtkButton *button, StylusEditor *editor)
             continue;
           }
         
-        g_print ("  Applying to device: %s\n", gimp_object_get_name (device_info));
+        g_print ("  Resetting device: %s\n", gimp_object_get_name (device_info));
         
-        /* Modify the pressure curve */
-        if (editor->natural_curve_enabled)
-          {
-            /* Set curve to FREE mode so we can set individual samples */
-            gimp_curve_set_curve_type (pressure_curve, GIMP_CURVE_FREE);
-            
-            /* Map all values: output = input * 0.1 */
-            for (i = 0; i < 256; i++)
-              {
-                gdouble x = i / 255.0;
-                gdouble y = x * 0.1;  /* Multiply by 0.1 */
-                gimp_curve_set_curve (pressure_curve, x, y);
-              }
-          }
-        else
-          {
-            /* Reset to linear 1:1 curve */
-            gimp_curve_reset (pressure_curve, FALSE);
-          }
+        /* Reset to linear 1:1 curve */
+        gimp_curve_reset (pressure_curve, FALSE);
       }
   }
   
-  if (editor->natural_curve_enabled)
-    g_print ("Natural Curve ENABLED (x0.1) on all devices\n");
-  else
-    g_print ("Natural Curve DISABLED (x1.0) on all devices\n");
-  
+  g_print ("All pressure curves reset to linear (x1.0)\n");
   g_print ("==========================================\n\n");
   
   g_signal_emit (editor, stylus_editor_signals[NATURAL_CURVE_REQUESTED], 0);
@@ -388,6 +356,55 @@ stylus_editor_update_pressure (gpointer data)
 
   /* Continue the timer */
   return TRUE;
+}
+
+/* ===============================================
+ * CUSTOM CURVE DRAW HANDLER
+ * Draws centered white axis labels on top of the curve view
+ * =============================================== */
+static gboolean
+stylus_editor_curve_draw (GtkWidget *widget, cairo_t *cr, StylusEditor *editor)
+{
+  PangoLayout *layout;
+  gint width, height;
+  gint layout_width, layout_height;
+  const gint border = 6;  /* Match the border used in gimpcurveview.c */
+  
+  /* Get widget dimensions */
+  width = gtk_widget_get_allocated_width (widget);
+  height = gtk_widget_get_allocated_height (widget);
+  
+  /* Create pango layout for text rendering */
+  layout = gtk_widget_create_pango_layout (widget, NULL);
+  
+  /* Set white color for labels */
+  cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
+  
+  /* Draw X-axis label (centered horizontally at bottom) */
+  pango_layout_set_text (layout, _ ("pen pressure"), -1);
+  pango_layout_get_pixel_size (layout, &layout_width, &layout_height);
+  
+  cairo_move_to (cr,
+                 border + (width / 2.0) - (layout_width / 2.0),
+                 height - border - layout_height);
+  pango_cairo_show_layout (cr, layout);
+  
+  /* Draw Y-axis label (centered vertically on left side, rotated) */
+  pango_layout_set_text (layout, _ ("pressure"), -1);
+  pango_layout_get_pixel_size (layout, &layout_width, &layout_height);
+  
+  cairo_save (cr);
+  cairo_move_to (cr,
+                 2 * border,
+                 border + (height / 2.0) + (layout_width / 2.0));
+  cairo_rotate (cr, - G_PI / 2);
+  pango_cairo_show_layout (cr, layout);
+  cairo_restore (cr);
+  
+  /* Clean up */
+  g_object_unref (layout);
+  
+  return FALSE;  /* Allow other handlers to run */
 }
 
 /* Public functions */
