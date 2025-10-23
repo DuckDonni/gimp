@@ -30,6 +30,7 @@
 static void stylus_editor_constructed (GObject *object);
 static void stylus_editor_dispose (GObject *object);
 static void stylus_editor_slider_changed (GtkAdjustment *adjustment, StylusEditor *editor);
+static void stylus_editor_preset_changed (GtkComboBox *combo, StylusEditor *editor);
 static void stylus_editor_natural_curve_clicked (GtkButton *button, StylusEditor *editor);
 static void stylus_editor_calibrate_clicked (GtkButton *button, StylusEditor *editor);
 static gboolean stylus_editor_update_pressure (gpointer data);
@@ -76,8 +77,10 @@ stylus_editor_init (StylusEditor *editor)
   editor->natural_curve_button = NULL;
   editor->pressure_label = NULL;
   editor->curve_view = NULL;
+  editor->preset_combo = NULL;
   editor->context = NULL;
   editor->last_active_device = NULL;
+  editor->curve_view_device = NULL;
   editor->natural_curve_enabled = FALSE;
 }
 
@@ -146,6 +149,21 @@ stylus_editor_constructed (GObject *object)
   gtk_box_pack_start (GTK_BOX (box_in_frame), editor->pressure_label, FALSE, FALSE, 0);
   gtk_widget_show (editor->pressure_label);
 
+  /* Add Preset selector dropdown (placeholder for future preset system) */
+  editor->preset_combo = gtk_combo_box_text_new ();
+  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (editor->preset_combo), _("Default"));
+  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (editor->preset_combo), _("Light Touch"));
+  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (editor->preset_combo), _("Heavy Pressure"));
+  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (editor->preset_combo), _("Sketching"));
+  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (editor->preset_combo), _("Inking"));
+  gtk_combo_box_set_active (GTK_COMBO_BOX (editor->preset_combo), 0);
+  gtk_box_pack_start (GTK_BOX (box_in_frame), editor->preset_combo, FALSE, FALSE, 0);
+  gtk_widget_show (editor->preset_combo);
+  
+  /* Connect signal for preset changes (placeholder - does nothing yet) */
+  g_signal_connect (editor->preset_combo, "changed",
+                   G_CALLBACK (stylus_editor_preset_changed), editor);
+
   /* Add Natural Curve button under the slider */
   editor->natural_curve_button = gtk_button_new_with_label (_ ("Natural Curve: OFF (x1.0)"));
   gtk_box_pack_start (GTK_BOX (box_in_frame), editor->natural_curve_button, FALSE, FALSE, 0);
@@ -162,9 +180,10 @@ stylus_editor_constructed (GObject *object)
   g_signal_connect (editor->calibrate_button, "clicked",
                     G_CALLBACK (stylus_editor_calibrate_clicked), editor);
 
-  /* Add Pressure Curve view */
+  /* Add Pressure Curve view - read-only display (no user editing allowed) */
   editor->curve_view = gimp_curve_view_new ();
   gtk_widget_set_size_request (editor->curve_view, 200, 200);
+  gtk_widget_set_sensitive (editor->curve_view, FALSE);  /* Disable all user interaction */
   gtk_box_pack_start (GTK_BOX (box_in_frame), editor->curve_view, FALSE, FALSE, 0);
   gtk_widget_show (editor->curve_view);
 
@@ -182,6 +201,19 @@ stylus_editor_slider_changed (GtkAdjustment *adjustment, StylusEditor *editor)
   
   /* Currently unused - placeholder for future pressure curve adjustments */
   (void) value;
+}
+
+static void
+stylus_editor_preset_changed (GtkComboBox *combo, StylusEditor *editor)
+{
+  gchar *preset_name = gtk_combo_box_text_get_active_text (GTK_COMBO_BOX_TEXT (combo));
+  
+  g_print ("Preset changed to: %s (placeholder - does nothing yet)\n", 
+          preset_name ? preset_name : "(none)");
+  
+  /* Future: Load preset curve data and apply it to devices */
+  
+  g_free (preset_name);
 }
 
 static void
@@ -271,19 +303,6 @@ stylus_editor_natural_curve_clicked (GtkButton *button, StylusEditor *editor)
   
   g_print ("==========================================\n\n");
   
-  /* Update the curve view to show the modified curve from the last active device */
-  if (editor->curve_view && editor->last_active_device)
-    {
-      pressure_curve = gimp_device_info_get_curve (editor->last_active_device, GDK_AXIS_PRESSURE);
-      if (pressure_curve)
-        {
-          g_print ("Updating curve view widget...\n");
-          gimp_curve_view_set_curve (GIMP_CURVE_VIEW (editor->curve_view), 
-                                    pressure_curve, NULL);
-          g_print ("Curve view updated.\n");
-        }
-    }
-  
   g_signal_emit (editor, stylus_editor_signals[NATURAL_CURVE_REQUESTED], 0);
 }
 
@@ -340,7 +359,7 @@ stylus_editor_update_pressure (gpointer data)
   if (!device_info)
     return TRUE;
 
-  /* Track the last active device (for targeting curve modifications) */
+  /* Track the last active device for pressure display only */
   editor->last_active_device = device_info;
 
   /* Try to get a window from the editor widget itself */
@@ -399,13 +418,15 @@ stylus_editor_new (GimpContext *context, GimpMenuFactory *menu_factory)
       if (device_manager)
         {
           device_info = gimp_device_manager_get_current_device (device_manager);
-          if (device_info)
+          if (device_info && editor->curve_view)
             {
               pressure_curve = gimp_device_info_get_curve (device_info, GDK_AXIS_PRESSURE);
-              if (pressure_curve && editor->curve_view)
+              if (pressure_curve)
                 {
                   gimp_curve_view_set_curve (GIMP_CURVE_VIEW (editor->curve_view), 
                                             pressure_curve, NULL);
+                  g_print ("Curve view set to device: %s\n",
+                          gimp_object_get_name (GIMP_OBJECT (device_info)));
                 }
             }
         }

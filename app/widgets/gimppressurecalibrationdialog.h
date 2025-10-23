@@ -45,16 +45,18 @@ struct _GimpPressureCalibrationDialog
   GtkWidget *start_button;
   GtkWidget *apply_button;
   GtkWidget *clear_button;
+  GtkWidget *apply_all_checkbox;  /* Checkbox for "Apply to all brushes" */
 
   /* Context for device access */
   GimpContext *context;
-  
+
   /* Target device captured when recording starts */
   GimpDeviceInfo *target_device;
 
   /* Calibration state */
   gboolean recording;
   GArray *pressure_samples;  /* Array of gdouble */
+  gboolean apply_to_all_brushes;  /* Whether to apply to all brushes or just current */
   
   /* Drawing state for visual feedback */
   cairo_surface_t *surface;

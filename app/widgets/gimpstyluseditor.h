@@ -35,11 +35,17 @@ struct _StylusEditor
   // Curve view widget
   GtkWidget     *curve_view;
   
+  // Preset selector dropdown (future: custom presets)
+  GtkWidget     *preset_combo;
+  
   // Context for device access
   GimpContext   *context;
   
-  // Last device that was actively used (for targeting curve changes)
+  // Last device that was actively used (for pressure display)
   GimpDeviceInfo *last_active_device;
+  
+  // Device that the curve view is locked to (usually the stylus)
+  GimpDeviceInfo *curve_view_device;
   
   // Natural curve toggle state
   gboolean      natural_curve_enabled;

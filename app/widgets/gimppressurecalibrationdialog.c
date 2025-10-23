@@ -54,6 +54,7 @@ static gboolean drawing_area_motion_notify (GtkWidget *widget, GdkEventMotion *e
 static void start_button_clicked (GtkButton *button, GimpPressureCalibrationDialog *dialog);
 static void apply_button_clicked (GtkButton *button, GimpPressureCalibrationDialog *dialog);
 static void clear_button_clicked (GtkButton *button, GimpPressureCalibrationDialog *dialog);
+static void apply_all_checkbox_toggled (GtkToggleButton *toggle, GimpPressureCalibrationDialog *dialog);
 
 /* ===============================================
  * TYPE DEFINITION
@@ -181,6 +182,19 @@ gimp_pressure_calibration_dialog_init (GimpPressureCalibrationDialog *dialog)
   gtk_widget_show (dialog->apply_button);
   g_signal_connect (dialog->apply_button, "clicked",
                    G_CALLBACK (apply_button_clicked), dialog);
+
+  /* "Apply to all brushes" checkbox (cosmetic for now - future per-brush feature) */
+  dialog->apply_all_checkbox = gtk_check_button_new_with_label (_("Apply to all brushes"));
+  gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (dialog->apply_all_checkbox), TRUE);
+  gtk_box_pack_start (GTK_BOX (main_vbox), dialog->apply_all_checkbox, FALSE, FALSE, 6);
+  gtk_widget_show (dialog->apply_all_checkbox);
+  
+  /* Initialize state (not used yet, but ready for per-brush feature) */
+  dialog->apply_to_all_brushes = TRUE;
+  
+  /* Connect checkbox to update state */
+  g_signal_connect (dialog->apply_all_checkbox, "toggled",
+                   G_CALLBACK (apply_all_checkbox_toggled), dialog);
 
   /* Add Close button to dialog */
   gtk_dialog_add_button (GTK_DIALOG (dialog), _("Close"), GTK_RESPONSE_CLOSE);
@@ -388,11 +402,23 @@ start_button_clicked (GtkButton *button,
           gtk_widget_set_sensitive (dialog->apply_button, TRUE);
         }
       else
+      
         {
           gtk_label_set_text (GTK_LABEL (dialog->status_label),
                              _("No pressure data recorded. Try again."));
         }
     }
+}
+
+static void
+apply_all_checkbox_toggled (GtkToggleButton *toggle,
+                            GimpPressureCalibrationDialog *dialog)
+{
+  dialog->apply_to_all_brushes = gtk_toggle_button_get_active (toggle);
+  
+  /* For now, just print the state - per-brush feature coming later */
+  g_print ("Apply to all brushes: %s (cosmetic only for now)\n", 
+          dialog->apply_to_all_brushes ? "YES" : "NO");
 }
 
 static void
@@ -444,7 +470,7 @@ apply_button_clicked (GtkButton *button,
       return;
     }
 
-  /* Analyze pressure data */
+  /* Analyze pressure data - find min and max */
   min_pressure = 1.0;
   max_pressure = 0.0;
   sum = 0.0;
@@ -460,10 +486,10 @@ apply_button_clicked (GtkButton *button,
   avg_pressure = sum / dialog->pressure_samples->len;
 
   g_print ("\n=== Applying Calibration to ALL devices ===\n");
-  g_print ("Pressure analysis: min=%.3f, max=%.3f, avg=%.3f\n",
-          min_pressure, max_pressure, avg_pressure);
+  g_print ("Pressure analysis: min=%.3f, max=%.3f, avg=%.3f, samples=%d\n",
+          min_pressure, max_pressure, avg_pressure, dialog->pressure_samples->len);
 
-  /* Get device manager to apply to all devices */
+  /* Get device manager to apply calibration */
   if (dialog->context)
     {
       device_manager = gimp_devices_get_manager (dialog->context->gimp);
@@ -472,6 +498,7 @@ apply_button_clicked (GtkButton *button,
           GimpContainer *container = GIMP_CONTAINER (device_manager);
           GList *list;
           
+          /* Apply to all devices (pressure curves are device-level, not per-brush) */
           for (list = GIMP_LIST (container)->queue->head; list; list = g_list_next (list))
             {
               device_info = GIMP_DEVICE_INFO (list->data);
@@ -488,25 +515,40 @@ apply_button_clicked (GtkButton *button,
               /* Set curve to FREE mode */
               gimp_curve_set_curve_type (pressure_curve, GIMP_CURVE_FREE);
               
-              /* Build a curve that stretches the user's natural range to full 0-1 */
+              /* Build a curve: normalize user's range to 0-1, then square it
+               * Step 1: Normalize input range [min, max] → [0, 1]
+               * Step 2: Square the result: y = y²
+               * 
+               * Effect: Creates a curve biased toward lighter pressures
+               * - y=0.0 stays 0.0
+               * - y=0.5 becomes 0.25 (lighter)
+               * - y=1.0 stays 1.0
+               */
               for (i = 0; i < 256; i++)
                 {
-                  gdouble x = i / 255.0;
+                  gdouble x = i / 255.0;  /* Input pressure (0.0 to 1.0) */
                   gdouble y;
                   
-                  /* Map user's natural range to full 0-1 range */
                   if (max_pressure > min_pressure)
                     {
-                      /* Normalize: stretch their range to fill 0-1 */
-                      y = 1 - x;
+                      /* Normalize to 0-1 range */
+                      y = (x - min_pressure) / (max_pressure - min_pressure);
+                      y = CLAMP (y, 0.0, 1.0);
+                      
+                      /* Square it for more control in light pressure range */
+                      y = y * y;
                     }
                   else
                     {
-                      y = 1 - x;  /* Fallback */
+                      /* Fallback: linear if no valid range */
+                      y = x;
                     }
                   
                   gimp_curve_set_curve (pressure_curve, x, y);
                 }
+              
+              g_print ("    Created curve: normalized [%.3f, %.3f] → [0, 1], then squared\n",
+                      min_pressure, max_pressure);
             }
         }
     }
