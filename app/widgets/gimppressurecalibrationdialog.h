@@ -42,7 +42,6 @@ struct _GimpPressureCalibrationDialog
   /* Widgets */
   GtkWidget *drawing_area;
   GtkWidget *status_label;
-  GtkWidget *start_button;
   GtkWidget *apply_button;
   GtkWidget *clear_button;
   GtkWidget *apply_all_checkbox;  /* Checkbox for "Apply to all brushes" */
@@ -57,6 +56,10 @@ struct _GimpPressureCalibrationDialog
   gboolean recording;
   GArray *pressure_samples;  /* Array of gdouble */
   gboolean apply_to_all_brushes;  /* Whether to apply to all brushes or just current */
+  
+  /* Velocity tracking */
+  GArray *velocity_samples;  /* Array of gdouble - stroke velocities */
+  guint32 last_event_time;   /* Time of last motion event in milliseconds */
   
   /* Drawing state for visual feedback */
   cairo_surface_t *surface;
