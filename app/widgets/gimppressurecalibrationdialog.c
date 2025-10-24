@@ -606,7 +606,7 @@ apply_button_clicked (GtkButton *button,
               g_print ("  Applying calibration to device: %s\n", gimp_object_get_name (device_info));
               
               /* Set curve to FREE mode */
-              gimp_curve_set_curve_type (pressure_curve, GIMP_CURVE_FREE);
+              gimp_curve_set_curve_type (pressure_curve, GIMP_CURVE_SMOOTH);
               
               /* Build calibration curve with power + velocity scaling:
                * Formula: y = (x^exponent) × velocity_strength
@@ -679,7 +679,7 @@ apply_button_clicked (GtkButton *button,
   g_array_set_size (dialog->pressure_samples, 0);
   g_array_set_size (dialog->velocity_samples, 0);
   dialog->recording = FALSE;
-  gtk_widget_set_sensitive (dialog->apply_button, FALSE);
+  //gtk_widget_set_sensitive (dialog->apply_button, TRUE);
 
   g_signal_emit (dialog, dialog_signals[CURVE_APPLIED], 0);
 }

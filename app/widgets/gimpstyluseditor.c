@@ -238,7 +238,7 @@ stylus_editor_constructed (GObject *object)
   /* Add Pressure Curve view - read-only display (no user editing allowed) */
   editor->curve_view = gimp_curve_view_new ();
   gtk_widget_set_size_request (editor->curve_view, 200, 200);
-  gtk_widget_set_sensitive (editor->curve_view, FALSE);  /* Disable all user interaction */
+  gtk_widget_set_sensitive (editor->curve_view, TRUE); 
   
   /* Connect custom draw handler for centered white axis labels */
   g_signal_connect_after (editor->curve_view, "draw",
