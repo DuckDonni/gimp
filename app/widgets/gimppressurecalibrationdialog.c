@@ -592,48 +592,56 @@ apply_button_clicked (GtkButton *button,
           GList *list;
           
           /* Apply to all devices (pressure curves are device-level, not per-brush) */
+          /* Apply to all devices (pressure curves are device-level, not per-brush) */
           for (list = GIMP_LIST (container)->queue->head; list; list = g_list_next (list))
             {
               device_info = GIMP_DEVICE_INFO (list->data);
-              
+
               pressure_curve = gimp_device_info_get_curve (device_info, GDK_AXIS_PRESSURE);
               if (!pressure_curve)
                 {
                   g_print ("  Skipping '%s' (no pressure curve)\n", gimp_object_get_name (device_info));
                   continue;
                 }
-              
+
               g_print ("  Applying calibration to device: %s\n", gimp_object_get_name (device_info));
-              
-              /* Set curve to FREE mode */
+
+              /* Build curve from control points (vertices), smooth interpolation */
               gimp_curve_set_curve_type (pressure_curve, GIMP_CURVE_SMOOTH);
-              
-              /* Build calibration curve with power + velocity scaling:
-               * Formula: y = (x^exponent) × velocity_strength
-               * 
-               * This naturally satisfies:
-               *   - At x=0: y = 0^exponent × velocity_strength = 0
-               *   - At x=1: y = 1^exponent × velocity_strength = velocity_strength (~0.8 to 1.0)
-               *   - For 0 < x < 1: y increases monotonically, always between 0 and velocity_strength
-               *   - No cutoffs - smooth curve throughout entire range
-               *   - Velocity effect: faster strokes → lower velocity_strength → thinner lines
-               */
-              for (i = 0; i < 256; i++)
+
+              /* Clear existing points and define new vertices following y = (x^exponent) * velocity_strength */
+              gimp_curve_clear_points (pressure_curve);
+
+              /* Ensure bounds */
+              {
+                gdouble end_y = pow (1.0, exponent) * velocity_strength;
+                if (end_y < 0.0) end_y = 0.0;
+                if (end_y > 1.0) end_y = 1.0;
+
+                /* Start and end vertices */
+                gimp_curve_add_point (pressure_curve, 0.0, 0.0);
+                gimp_curve_add_point (pressure_curve, 1.0, end_y);
+
+                /* Add a few intermediate vertices to shape the power curve */
                 {
-                  gdouble x = i / 255.0;  /* Input pressure (0.0 to 1.0) */
-                  gdouble y;
-                  
-                  /* Apply power curve */
-                  y = pow(x, exponent);
-                  
-                  /* Scale by velocity factor (faster = thinner) */
-                  y = y * velocity_strength;
-                  
-                  gimp_curve_set_curve (pressure_curve, x, y);
+                  /* Tunable density of control points */
+                  const gint n_mid_points = 3; /* produces 8 total points incl. endpoints */
+
+                  for (i = 1; i <= n_mid_points; i++)
+                    {
+                      gdouble x = (gdouble) i / (n_mid_points + 1); /* evenly spaced in (0,1) */
+                      gdouble y = pow (x, exponent) * velocity_strength;
+
+                      if (y < 0.0) y = 0.0;
+                      if (y > 1.0) y = 1.0;
+
+                      gimp_curve_add_point (pressure_curve, x, y);
+                    }
                 }
-              
-              g_print ("    Created curve: y = (x^%.2f) × %.3f (smooth, no cutoffs)\n",
-                      exponent, velocity_strength);
+              }
+
+              g_print ("    Created curve via vertices: y = (x^%.2f) × %.3f (smooth)\n",
+                       exponent, velocity_strength);
             }
         }
     }
