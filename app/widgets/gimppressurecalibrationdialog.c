@@ -625,7 +625,7 @@ apply_button_clicked (GtkButton *button,
                 /* Add a few intermediate vertices to shape the power curve */
                 {
                   /* Tunable density of control points */
-                  const gint n_mid_points = 3; /* produces 8 total points incl. endpoints */
+                  const gint n_mid_points = 1; /* produces 8 total points incl. endpoints */
 
                   for (i = 1; i <= n_mid_points; i++)
                     {

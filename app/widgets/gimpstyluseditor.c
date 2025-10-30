@@ -48,6 +48,7 @@ static gboolean stylus_editor_curve_draw (GtkWidget *widget, cairo_t *cr, Stylus
 static void stylus_editor_brush_changed (GimpContext *context, GimpBrush *brush, StylusEditor *editor);
 static void stylus_editor_save_brush_curves (StylusEditor *editor);
 static void stylus_editor_load_brush_curves (StylusEditor *editor);
+static gboolean stylus_editor_block_events (GtkWidget *widget, GdkEvent *event, gpointer user_data);
 
 G_DEFINE_TYPE (StylusEditor, stylus_editor, GIMP_TYPE_EDITOR)
 
@@ -238,11 +239,22 @@ stylus_editor_constructed (GObject *object)
   /* Add Pressure Curve view - read-only display (no user editing allowed) */
   editor->curve_view = gimp_curve_view_new ();
   gtk_widget_set_size_request (editor->curve_view, 200, 200);
-  gtk_widget_set_sensitive (editor->curve_view, TRUE); 
-  
-  /* Connect custom draw handler for centered white axis labels */
-  g_signal_connect_after (editor->curve_view, "draw",
-                          G_CALLBACK (stylus_editor_curve_draw), editor);
+  gtk_widget_set_sensitive (editor->curve_view, TRUE);
+
+  /* Block interactive edits on the curve view */
+  gtk_widget_add_events (editor->curve_view,
+                         GDK_BUTTON_PRESS_MASK |
+                         GDK_BUTTON_RELEASE_MASK |
+                         GDK_POINTER_MOTION_MASK |
+                         GDK_SCROLL_MASK);
+  g_signal_connect (editor->curve_view, "button-press-event",
+                    G_CALLBACK (stylus_editor_block_events), NULL);
+  g_signal_connect (editor->curve_view, "button-release-event",
+                    G_CALLBACK (stylus_editor_block_events), NULL);
+  g_signal_connect (editor->curve_view, "motion-notify-event",
+                    G_CALLBACK (stylus_editor_block_events), NULL);
+  g_signal_connect (editor->curve_view, "scroll-event",
+                    G_CALLBACK (stylus_editor_block_events), NULL);
   
   gtk_box_pack_start (GTK_BOX (box_in_frame), editor->curve_view, FALSE, FALSE, 0);
   gtk_widget_show (editor->curve_view);
@@ -439,6 +451,44 @@ stylus_editor_calibrate_clicked (GtkButton *button, StylusEditor *editor)
 
   gtk_widget_show (dialog);
   gtk_dialog_run (GTK_DIALOG (dialog));
+}
+
+static gboolean
+stylus_editor_block_events (GtkWidget *widget, GdkEvent *event, gpointer user_data)
+{
+  if (event->type == GDK_BUTTON_PRESS)
+    {
+      /* Check if we're trying to add a new point when we already have 5 */
+      GimpCurveView *curve_view = GIMP_CURVE_VIEW (widget);
+      GimpCurve *curve;
+      
+      curve = gimp_curve_view_get_curve (curve_view);
+      if (curve)
+        {
+          gint n_points = gimp_curve_get_n_points (curve);
+          
+          /* If already at 5 points, block creating new ones */
+          if (n_points >= 3)
+            {
+              g_print("points:%d\n", n_points);
+              /* Check if clicking on empty space (not dragging existing point) */
+              gint width = gtk_widget_get_allocated_width (widget);
+              gint height = gtk_widget_get_allocated_height (widget);
+              gdouble curve_x = event->button.x / (gdouble) width;
+              gdouble curve_y = 1.0 - (event->button.y / (gdouble) height);
+              gint point_index = gimp_curve_get_closest_point (curve, curve_x, curve_y, 0.05);
+              
+              /* Block only if clicking on empty space (not an existing point) */
+              if (point_index < 0)
+                {
+                  return TRUE; /* Block new point creation */
+                }
+            }
+        }
+    }
+  
+  /* Allow all other events */
+  return FALSE;
 }
 
 /* ===============================================
