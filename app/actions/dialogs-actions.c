@@ -299,7 +299,16 @@ const GimpStringActionEntry dialogs_dockable_actions[] =
     { NULL },
     NC_("dialogs-action", "Open the dashboard"),
     "gimp-dashboard",
-    GIMP_HELP_ERRORS_DIALOG }
+    GIMP_HELP_ERRORS_DIALOG },
+
+    { "dialogs-stylus-editor", NULL,
+      NC_("dialogs-action", "_Stylus Editor Dialog"),
+      NC_("dialogs-action", "_Stylus Editor"),
+      { NULL },
+      NC_("dialogs-action", "Open the Stylus Editor"),
+      "stylus-editor",
+      NULL }
+
 };
 
 gint n_dialogs_dockable_actions = G_N_ELEMENTS (dialogs_dockable_actions);

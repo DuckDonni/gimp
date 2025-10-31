@@ -67,7 +67,7 @@ typedef struct _GimpDynamicsEditor           GimpDynamicsEditor;
 typedef struct _GimpGradientEditor           GimpGradientEditor;
 typedef struct _GimpPaletteEditor            GimpPaletteEditor;
 typedef struct _GimpToolPresetEditor         GimpToolPresetEditor;
-
+typedef struct _StylusEditor                 StylusEditor;
 
 /*  GimpImageEditor widgets  */
 

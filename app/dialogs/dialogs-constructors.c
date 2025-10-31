@@ -65,6 +65,7 @@
 #include "widgets/gimptoolpreseteditor.h"
 #include "widgets/gimpundoeditor.h"
 #include "widgets/gimppathtreeview.h"
+#include "widgets/gimpstyluseditor.h"
 
 #include "display/gimpcursorview.h"
 #include "display/gimpnavigationeditor.h"
@@ -915,3 +916,20 @@ dialogs_tool_preset_editor_get (GimpDialogFactory *factory,
   return gimp_tool_preset_editor_new (context,
                                       menus_get_global_menu_factory (context->gimp));
 }
+
+GtkWidget * dialogs_stylus_editor_get (GimpDialogFactory *factory,
+  GimpContext       *context,
+  GimpUIManager     *ui_manager,
+  gint               view_size)
+
+  {
+    GtkWidget *w = stylus_editor_new (context,
+                                      menus_get_global_menu_factory (context->gimp));
+
+    if (w)
+      {
+        gtk_widget_set_size_request (w, 400, 300);
+      }
+
+    return w;
+  }
