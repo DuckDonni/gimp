@@ -19,44 +19,20 @@ struct _StylusEditor
 {
   GimpEditor parent_instance;
 
-  // Slider Components
   GtkAdjustment *slider_adjustment;
   GtkWidget     *slider_scale;
-
-  // Reset Curve button
   GtkWidget     *natural_curve_button;
-  
-  // Calibrate button
-  
   GtkWidget     *calibrate_button;
-  
-  // Pressure display
   GtkWidget     *pressure_label;
-  
-  // Curve view widget
   GtkWidget     *curve_view;
-  
-  // Preset selector dropdown (future: custom presets)
   GtkWidget     *preset_combo;
-  
-  // Reset All Curves button
   GtkWidget     *reset_all_button;
-  
-  // Context for device access
   GimpContext   *context;
-  
-  // Last device that was actively used (for pressure display)
   GimpDeviceInfo *last_active_device;
-  
-  // Device that the curve view is locked to (usually the stylus)
   GimpDeviceInfo *curve_view_device;
-  
-  // Per-brush pressure curve storage
-  GHashTable     *brush_curves;      /* Maps brush name (gchar*) -> GimpCurve* */
-  GimpBrush      *current_brush;     /* Current active brush */
-  
-  // Global default curve (used when "Apply to all brushes" is selected)
-  GimpCurve      *global_default_curve;  /* NULL if no global default set */
+  GHashTable     *brush_curves;
+  GimpBrush      *current_brush;
+  GimpCurve      *global_default_curve;
 };
 
 struct _StylusEditorClass
@@ -64,7 +40,6 @@ struct _StylusEditorClass
 {
   GimpEditorClass parent_class;
 
-  /* Emitted when Natural Curve is requested by user */
   void (* natural_curve_requested) (StylusEditor *editor);
 };
 
@@ -72,13 +47,10 @@ GType stylus_editor_get_type (void) G_GNUC_CONST;
 
 GtkWidget *stylus_editor_new (GimpContext *context, GimpMenuFactory *menu_factory);
 
-/* Get current power setting for calibration */
 gdouble stylus_editor_get_power (Gimp *gimp);
 
-/* Store pressure curve for current or all brushes */
 void stylus_editor_store_curve (Gimp *gimp, GimpCurve *curve, gboolean apply_to_all);
 
-/* Get current brush name */
 const gchar* stylus_editor_get_current_brush_name (Gimp *gimp);
 
 G_END_DECLS

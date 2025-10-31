@@ -39,40 +39,28 @@ struct _GimpPressureCalibrationDialog
 {
   GtkDialog parent_instance;
 
-  /* Widgets */
   GtkWidget *drawing_area;
   GtkWidget *status_label;
   GtkWidget *apply_button;
   GtkWidget *clear_button;
-  GtkWidget *apply_all_checkbox;  /* Checkbox for "Apply to all brushes" */
-
-  /* Context for device access */
+  GtkWidget *apply_all_checkbox;
   GimpContext *context;
-
-  /* Target device captured when recording starts */
   GimpDeviceInfo *target_device;
-
-  /* Calibration state */
   gboolean recording;
-  GArray *pressure_samples;  /* Array of gdouble */
-  gboolean apply_to_all_brushes;  /* Whether to apply to all brushes or just current */
-  
-  /* Velocity tracking */
-  GArray *velocity_samples;  /* Array of gdouble - stroke velocities */
-  guint32 last_event_time;   /* Time of last motion event in milliseconds */
-  
-  /* Drawing state for visual feedback */
+  GArray *pressure_samples;
+  gboolean apply_to_all_brushes;
+  GArray *velocity_samples;
+  guint32 last_event_time;
   cairo_surface_t *surface;
   gdouble last_x;
   gdouble last_y;
-  gboolean is_drawing;  /* TRUE when pen is pressed down */
+  gboolean is_drawing;
 };
 
 struct _GimpPressureCalibrationDialogClass
 {
   GtkDialogClass parent_class;
 
-  /* Signal emitted when calibration is applied */
   void (* curve_applied) (GimpPressureCalibrationDialog *dialog);
 };
 
