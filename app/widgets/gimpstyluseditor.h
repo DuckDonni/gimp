@@ -5,12 +5,12 @@
 
 G_BEGIN_DECLS
 
-#define STYLUS_TYPE_DOCK (stylus_editor_get_type ())
-#define STYLUS_EDITOR(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), STYLUS_EDITOR_DOCK, StylusEditor))
-#define STYLUS_EDITOR_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass), STYLUS_EDITOR_DOCK, StylusEditorClass))
-#define STYLUS_IS_DOCK(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), STYLUS_EDITOR_DOCK))
-#define STYLUS_IS_DOCK_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), STYLUS_EDITOR_DOCK))
-#define STYLUS_EDITOR_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS ((obj), STYLUS_EDITOR_DOCK, StylusEditorClass))
+#define STYLUS_TYPE_EDITOR (stylus_editor_get_type ())
+#define STYLUS_EDITOR(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), STYLUS_TYPE_EDITOR, StylusEditor))
+#define STYLUS_EDITOR_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass), STYLUS_TYPE_EDITOR, StylusEditorClass))
+#define STYLUS_IS_EDITOR(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), STYLUS_TYPE_EDITOR))
+#define STYLUS_IS_EDITOR_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), STYLUS_TYPE_EDITOR))
+#define STYLUS_EDITOR_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS ((obj), STYLUS_TYPE_EDITOR, StylusEditorClass))
 
 typedef struct _StylusEditor      StylusEditor;
 typedef struct _StylusEditorClass StylusEditorClass;
