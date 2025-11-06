@@ -1,15 +1,19 @@
 {
-  "files.associations": {
-    "gimpwidgets.h": "c",
-    "gimpcursorview.h": "c",
-    "widgets-types.h": "c"
-  },
-  "C_Cpp_Runner.msvcBatchPath": "",
+  "C_Cpp.clang_format_fallbackStyle": "GNU",
+  "editor.rulers": [
+    80
+  ],
+  "editor.tabSize": 2,
+  "editor.renderControlCharacters": true,
+  "editor.renderWhitespace": "trailing",
+  "files.trimTrailingWhitespace": true,
+  "files.eol": "\n",
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "g++",
   "C_Cpp_Runner.debuggerPath": "gdb",
   "C_Cpp_Runner.cStandard": "",
   "C_Cpp_Runner.cppStandard": "",
+  "C_Cpp_Runner.msvcBatchPath": "",
   "C_Cpp_Runner.useMsvc": false,
   "C_Cpp_Runner.warnings": [
     "-Wall",

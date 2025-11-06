@@ -249,15 +249,15 @@ drawing_area_button_press (GtkWidget      *widget,
           if (device_manager)
             {
               dialog->target_device = gimp_device_manager_get_current_device (device_manager);
-              
+
               if (dialog->target_device)
                 {
-                  g_print ("Calibration will target device: %s\n", 
+                  g_print ("Calibration will target device: %s\n",
                           gimp_object_get_name (dialog->target_device));
                 }
             }
         }
-      
+
       g_print ("\n=== VELOCITY TRACKING STARTED ===\n");
 
       gtk_label_set_text (GTK_LABEL (dialog->status_label),
@@ -293,7 +293,7 @@ drawing_area_button_release (GtkWidget      *widget,
           gdouble max_velocity = 0.0;
           gdouble avg_velocity = 0.0;
           guint i;
-          
+
           for (i = 0; i < dialog->velocity_samples->len; i++)
             {
               gdouble v = g_array_index (dialog->velocity_samples, gdouble, i);
@@ -302,7 +302,7 @@ drawing_area_button_release (GtkWidget      *widget,
               if (v > max_velocity) max_velocity = v;
             }
           avg_velocity /= dialog->velocity_samples->len;
-          
+
           g_print ("\n=== STROKE COMPLETE - CUMULATIVE STATS ===\n");
           g_print ("Total velocity samples: %d\n", dialog->velocity_samples->len);
           g_print ("Min velocity: %.2f px/s\n", min_velocity);
@@ -342,7 +342,7 @@ drawing_area_motion_notify (GtkWidget      *widget,
   g_array_append_val (dialog->pressure_samples, pressure);
 
   current_time = event->time;
-  
+
   if (dialog->last_event_time > 0)
     {
       time_delta = (current_time - dialog->last_event_time) / 1000.0;
@@ -361,7 +361,7 @@ drawing_area_motion_notify (GtkWidget      *widget,
                    time_delta, distance, velocity, pressure);
         }
     }
-  
+
   dialog->last_event_time = current_time;
 
   if (!dialog->surface)
@@ -429,7 +429,7 @@ clear_button_clicked (GtkButton *button,
                      _("Draw naturally on the scratchpad below with your stylus.\n"
                        "Use your normal drawing pressure. Recording starts when you begin drawing."));
   gtk_widget_set_sensitive (dialog->apply_button, FALSE);
-  
+
   gtk_widget_queue_draw (dialog->drawing_area);
 }
 
@@ -442,12 +442,15 @@ apply_button_clicked (GtkButton *button,
   GimpCurve *pressure_curve;
   gdouble min_pressure;
   gdouble max_pressure;
-  gdouble avg_pressure; 
+  gdouble avg_pressure;
+  gdouble median_pressure;
   gdouble sum;
   guint i;
   gchar *text;
   gdouble exponent;
-  gdouble min_velocity, max_velocity, avg_velocity;
+  gdouble min_velocity = 0.0;
+  gdouble max_velocity = 0.0;
+  gdouble avg_velocity = 0.0;
   gdouble velocity_strength;
 
   if (dialog->pressure_samples->len < 10)
@@ -456,6 +459,7 @@ apply_button_clicked (GtkButton *button,
                          _("Not enough samples. Draw more strokes and try again."));
       return;
     }
+
 
   min_pressure = 1.0;
   max_pressure = 0.0;
@@ -471,10 +475,64 @@ apply_button_clicked (GtkButton *button,
 
   avg_pressure = sum / dialog->pressure_samples->len;
 
+
+  {
+    GArray *sorted_pressures = g_array_sized_new (FALSE, FALSE, sizeof (gdouble),
+                                                   dialog->pressure_samples->len);
+    for (i = 0; i < dialog->pressure_samples->len; i++)
+      {
+        gdouble p = g_array_index (dialog->pressure_samples, gdouble, i);
+        g_array_append_val (sorted_pressures, p);
+      }
+
+
+    {
+      gboolean swapped;
+      do
+        {
+          swapped = FALSE;
+          for (i = 0; i < sorted_pressures->len - 1; i++)
+            {
+              gdouble p1 = g_array_index (sorted_pressures, gdouble, i);
+              gdouble p2 = g_array_index (sorted_pressures, gdouble, i + 1);
+              if (p1 > p2)
+                {
+
+                  g_array_index (sorted_pressures, gdouble, i) = p2;
+                  g_array_index (sorted_pressures, gdouble, i + 1) = p1;
+                  swapped = TRUE;
+                }
+            }
+        }
+      while (swapped);
+    }
+
+    if (sorted_pressures->len > 0)
+      {
+        guint mid = sorted_pressures->len / 2;
+        if (sorted_pressures->len % 2 == 0)
+          {
+            gdouble p1 = g_array_index (sorted_pressures, gdouble, mid - 1);
+            gdouble p2 = g_array_index (sorted_pressures, gdouble, mid);
+            median_pressure = (p1 + p2) / 2.0;
+          }
+        else
+          {
+            median_pressure = g_array_index (sorted_pressures, gdouble, mid);
+          }
+      }
+    else
+      {
+        median_pressure = 0.5;
+      }
+
+    g_array_free (sorted_pressures, TRUE);
+  }
+
   min_velocity = G_MAXDOUBLE;
   max_velocity = 0.0;
   avg_velocity = 0.0;
-  
+
   if (dialog->velocity_samples->len > 0)
     {
       for (i = 0; i < dialog->velocity_samples->len; i++)
@@ -504,15 +562,13 @@ apply_button_clicked (GtkButton *button,
     {
       velocity_strength = 1.0;
     }
-  
-  g_print ("\n=== Applying Calibration to ALL devices ===\n");
-  g_print ("Pressure analysis: min=%.3f, max=%.3f, avg=%.3f, samples=%d\n",
-          min_pressure, max_pressure, avg_pressure, dialog->pressure_samples->len);
+
+  g_print ("\n=== Applying Sigmoid-Based Calibration ===\n");
+  g_print ("Pressure analysis: min=%.3f, max=%.3f, avg=%.3f, median=%.3f, samples=%d\n",
+          min_pressure, max_pressure, avg_pressure, median_pressure, dialog->pressure_samples->len);
   g_print ("Velocity analysis: avg=%.2f px/s → scaling factor=%.3f\n",
           avg_velocity, velocity_strength);
   g_print ("Power setting: %.2f\n", exponent);
-          g_print ("Creating curve: y = (x^%.2f) × %.3f (no cutoffs, 0→0, 1→1)\n",
-          exponent, velocity_strength);
 
   if (dialog->context)
     {
@@ -533,44 +589,65 @@ apply_button_clicked (GtkButton *button,
                   continue;
                 }
 
-              g_print ("  Applying calibration to device: %s\n", gimp_object_get_name (device_info));
+              g_print ("  Applying sigmoid calibration to device: %s\n", gimp_object_get_name (device_info));
 
               gimp_curve_set_curve_type (pressure_curve, GIMP_CURVE_SMOOTH);
-
               gimp_curve_clear_points (pressure_curve);
 
               {
-                gdouble end_y = pow (1.0, exponent) * velocity_strength;
-                if (end_y < 0.0) end_y = 0.0;
-                if (end_y > 1.0) end_y = 1.0;
+                gdouble x0;
+                gdouble k;
+                gdouble pressure_range;
+                gdouble L;
+                gint n_points = 4;
+                guint j;
 
-                gimp_curve_add_point (pressure_curve, 0.0, 0.0);
-                gimp_curve_add_point (pressure_curve, 1.0, end_y);
+                x0 = median_pressure;
 
-                {
-                  const gint n_mid_points = 1;
+                pressure_range = max_pressure - min_pressure;
+                k = 8.0 * exponent;
 
-                  for (i = 1; i <= n_mid_points; i++)
-                    {
-                      gdouble x = (gdouble) i / (n_mid_points + 1);
-                      gdouble y = pow (x, exponent) * velocity_strength;
+                // ?  possible smoothing
+                if (pressure_range > 0.0 && pressure_range < 0.5)
+                  {
+                    k *= 1.5;
+                  }
+                else if (pressure_range > 0.8)
+                  {
+                    k *= 0.8;
+                  }
 
-                      if (y < 0.0) y = 0.0;
-                      if (y > 1.0) y = 1.0;
+                L = velocity_strength;
 
-                      gimp_curve_add_point (pressure_curve, x, y);
-                    }
-                }
+
+                for (j = 0; j <= n_points; j++)
+                  {
+                    gdouble x;
+                    gdouble sigmoid_arg;
+                    gdouble y;
+
+                    x = (gdouble) j / (gdouble) n_points;
+
+                    sigmoid_arg = -k * (x - x0);
+                    y = L / (1.0 + exp (sigmoid_arg));
+
+                    if (y < 0.0) y = 0.0;
+                    if (y > 1.0) y = 1.0;
+
+                    gimp_curve_add_point (pressure_curve, x, y);
+                  }
+
+                g_print ("    Created sigmoid curve: x0=%.3f, k=%.3f, L=%.3f (%d points)\n",
+                        x0, k, L, n_points + 1);
               }
-
-              g_print ("    Created curve via vertices: y = (x^%.2f) × %.3f (smooth)\n",
-                       exponent, velocity_strength);
             }
         }
     }
-  
-  g_print ("Calibration applied to all devices!\n");
+
+  g_print ("Sigmoid calibration applied to all devices!\n");
   g_print ("=========================================\n\n");
+
+
 
   if (dialog->context && device_info)
     {
