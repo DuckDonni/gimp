@@ -593,54 +593,71 @@ apply_button_clicked (GtkButton *button,
 
               gimp_curve_set_curve_type (pressure_curve, GIMP_CURVE_SMOOTH);
               gimp_curve_clear_points (pressure_curve);
-
-              {
-                gdouble x0;
-                gdouble k;
-                gdouble pressure_range;
-                gdouble L;
-                gint n_points = 4;
-                guint j;
-
-                x0 = median_pressure;
-
-                pressure_range = max_pressure - min_pressure;
-                k = 8.0 * exponent;
-
-                // ?  possible smoothing
-                if (pressure_range > 0.0 && pressure_range < 0.5)
-                  {
-                    k *= 1.5;
-                  }
-                else if (pressure_range > 0.8)
-                  {
-                    k *= 0.8;
-                  }
-
-                L = velocity_strength;
-
-
-                for (j = 0; j <= n_points; j++)
-                  {
-                    gdouble x;
-                    gdouble sigmoid_arg;
-                    gdouble y;
-
-                    x = (gdouble) j / (gdouble) n_points;
-
-                    sigmoid_arg = -k * (x - x0);
-                    y = L / (1.0 + exp (sigmoid_arg));
-
-                    if (y < 0.0) y = 0.0;
-                    if (y > 1.0) y = 1.0;
-
-                    gimp_curve_add_point (pressure_curve, x, y);
-                  }
-
-                g_print ("    Created sigmoid curve: x0=%.3f, k=%.3f, L=%.3f (%d points)\n",
-                        x0, k, L, n_points + 1);
               }
-            }
+              {
+                // Cubic Regression Curve
+                // B = (XT * X)^-1 * XT * Y
+                gint p_len = dialog->pressure_samples->len;
+                gint v_len = dialog->velocity_samples->len;
+                // gdouble X [4][p_len];
+                // gdouble XT [p_len][4];
+                // gdouble Y [v_len];
+
+                // for (i = 0; i < p_len; i++)
+                //   {
+                //     X[0][i] = 1.0;
+                //     X[1][i] = g_array_index (dialog->pressure_samples, gdouble, i);
+                //     X[2][i] = pow(g_array_index (dialog->pressure_samples, gdouble, i),2);
+                //     X[3][i] = pow(g_array_index (dialog->pressure_samples, gdouble, i),3);
+                //   }
+
+                // for (i = 0; i < v_len; i++)
+                // {
+                //   Y[i] = g_array_index (dialog->velocity_samples, gdouble, i);
+                // }
+
+                GArray *X = g_array_sized_new (FALSE, FALSE, sizeof (GArray *), p_len);
+                for (guint i = 0; i < p_len; i++)
+                  {
+                    GArray *row_array = g_array_sized_new (FALSE, FALSE, sizeof (gdouble), 4);
+                    // Pre-allocate space for 4 elements
+                    g_array_set_size (row_array, 4);
+                    g_array_append_val (X, row_array);
+                  }
+
+                // Populate each row with ones (1.0) at indices 0, 1, 2, 3
+                for (guint i = 0; i < X->len; i++)
+                  {
+                    GArray *row_array = g_array_index (X, GArray *, i);
+                    gdouble *row_data = (gdouble *) row_array->data;
+                    // need to get the value at pressure_samples[i]
+                    gdouble pressure_value = g_array_index (dialog->pressure_samples, gdouble, i);
+                    row_data[0] = 1.0;
+                    row_data[1] = pressure_value;
+                    row_data[2] = pow(pressure_value, 2);
+                    row_data[3] = pow(pressure_value, 3);
+                  }
+
+                // Print the values
+                for (guint i = 0; i < X->len; i++)
+                  {
+                    GArray *row_array = g_array_index (X, GArray *, i);
+                    g_print ("Row %d: %f, %f, %f, %f\n", i,
+                            g_array_index (row_array, gdouble, 0),
+                            g_array_index (row_array, gdouble, 1),
+                            g_array_index (row_array, gdouble, 2),
+                            g_array_index (row_array, gdouble, 3));
+                  }
+
+                // TODO: Free the 2D array when done
+                // for (guint i = 0; i < X->len; i++)
+                //   {
+                //     GArray *row_array = g_array_index (X, GArray *, i);
+                //     g_array_free (row_array, TRUE);
+                //   }
+                // g_array_free (X, TRUE);
+              }
+
         }
     }
 
