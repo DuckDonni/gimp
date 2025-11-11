@@ -64,10 +64,10 @@ struct _GimpPressureCalibrationDialogClass
   void (* curve_applied) (GimpPressureCalibrationDialog *dialog);
 };
 
-GType      gimp_pressure_calibration_dialog_get_type (void) G_GNUC_CONST;
+GType          gimp_pressure_calibration_dialog_get_type (void) G_GNUC_CONST;
 
-GtkWidget *gimp_pressure_calibration_dialog_new      (GimpContext *context,
-                                                      GtkWidget   *parent);
+GtkWidget    * gimp_pressure_calibration_dialog_new       (GimpContext *context,
+                                                           GtkWidget   *parent);
 
 G_END_DECLS
 

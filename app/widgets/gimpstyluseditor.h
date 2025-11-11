@@ -43,15 +43,18 @@ struct _StylusEditorClass
   void (* natural_curve_requested) (StylusEditor *editor);
 };
 
-GType stylus_editor_get_type (void) G_GNUC_CONST;
+GType          stylus_editor_get_type                (void) G_GNUC_CONST;
 
-GtkWidget *stylus_editor_new (GimpContext *context, GimpMenuFactory *menu_factory);
+GtkWidget    * stylus_editor_new                     (GimpContext     *context,
+                                                      GimpMenuFactory *menu_factory);
 
-gdouble stylus_editor_get_power (Gimp *gimp);
+gdouble        stylus_editor_get_power               (Gimp            *gimp);
 
-void stylus_editor_store_curve (Gimp *gimp, GimpCurve *curve, gboolean apply_to_all);
+void           stylus_editor_store_curve             (Gimp            *gimp,
+                                                      GimpCurve       *curve,
+                                                      gboolean         apply_to_all);
 
-const gchar* stylus_editor_get_current_brush_name (Gimp *gimp);
+const gchar  * stylus_editor_get_current_brush_name  (Gimp            *gimp);
 
 G_END_DECLS
 

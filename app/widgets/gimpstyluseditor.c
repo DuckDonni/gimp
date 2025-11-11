@@ -36,19 +36,32 @@ static gdouble current_power_setting = 1.0;
 /* Module-level reference to the stylus editor instance (for per-brush curves) */
 static StylusEditor *global_stylus_editor = NULL;
 
-static void stylus_editor_constructed (GObject *object);
-static void stylus_editor_dispose (GObject *object);
-static void stylus_editor_slider_changed (GtkAdjustment *adjustment, StylusEditor *editor);
-static void stylus_editor_preset_changed (GtkComboBox *combo, StylusEditor *editor);
-static void stylus_editor_natural_curve_clicked (GtkButton *button, StylusEditor *editor);
-static void stylus_editor_reset_all_curves_clicked (GtkButton *button, StylusEditor *editor);
-static void stylus_editor_calibrate_clicked (GtkButton *button, StylusEditor *editor);
-static gboolean stylus_editor_update_pressure (gpointer data);
-static void stylus_editor_brush_changed (GimpContext *context, GimpBrush *brush, StylusEditor *editor);
-static void stylus_editor_curve_dirty (GimpCurve *curve, StylusEditor *editor);
-static void stylus_editor_save_brush_curves (StylusEditor *editor);
-static void stylus_editor_load_brush_curves (StylusEditor *editor);
-static gboolean stylus_editor_block_events (GtkWidget *widget, GdkEvent *event, gpointer user_data);
+static void      stylus_editor_constructed               (GObject     *object);
+static void      stylus_editor_dispose                   (GObject     *object);
+static void      stylus_editor_slider_changed            (GtkAdjustment *adjustment,
+                                                          StylusEditor  *editor);
+static void      stylus_editor_preset_changed            (GtkComboBox *combo,
+                                                          StylusEditor *editor);
+static void      stylus_editor_natural_curve_clicked     (GtkButton   *button,
+                                                          StylusEditor *editor);
+static void      stylus_editor_reset_all_curves_clicked  (GtkButton   *button,
+                                                          StylusEditor *editor);
+static void      stylus_editor_calibrate_clicked         (GtkButton   *button,
+                                                          StylusEditor *editor);
+static gboolean  stylus_editor_update_pressure           (gpointer     data);
+static void      stylus_editor_brush_changed             (GimpContext *context,
+                                                          GimpBrush   *brush,
+                                                          StylusEditor *editor);
+static void      stylus_editor_curve_dirty               (GimpCurve   *curve,
+                                                          StylusEditor *editor);
+static void      stylus_editor_save_brush_curves         (StylusEditor *editor);
+static void      stylus_editor_load_brush_curves         (StylusEditor *editor);
+static gboolean  stylus_editor_block_events              (GtkWidget   *widget,
+                                                          GdkEvent    *event,
+                                                          gpointer     user_data);
+static gboolean  stylus_editor_curve_draw                (GtkWidget   *widget,
+                                                          cairo_t     *cr,
+                                                          StylusEditor *editor);
 
 G_DEFINE_TYPE (StylusEditor, stylus_editor, GIMP_TYPE_EDITOR)
 
@@ -95,8 +108,10 @@ stylus_editor_init (StylusEditor *editor)
   editor->last_active_device = NULL;
   editor->curve_view_device = NULL;
 
-  editor->brush_curves = g_hash_table_new_full (g_str_hash, g_str_equal,
-                                                 g_free, g_object_unref);
+  editor->brush_curves = g_hash_table_new_full (g_str_hash,
+                                                 g_str_equal,
+                                                 g_free,
+                                                 g_object_unref);
   editor->current_brush = NULL;
   editor->global_default_curve = NULL;
 }
@@ -126,8 +141,10 @@ stylus_editor_dispose (GObject *object)
 
   if (editor->curve_view_device)
     {
-      GimpCurve *curve = gimp_device_info_get_curve (editor->curve_view_device,
-                                                      GDK_AXIS_PRESSURE);
+      GimpCurve *curve;
+
+      curve = gimp_device_info_get_curve (editor->curve_view_device,
+                                          GDK_AXIS_PRESSURE);
       if (curve)
         {
           g_signal_handlers_disconnect_by_func (curve,
@@ -181,7 +198,8 @@ stylus_editor_constructed (GObject *object)
    * Page increment: 0.1 for coarser adjustments
    * Constrain drag = FALSE for free sliding without snapping
    */
-  editor->slider_adjustment = gtk_adjustment_new (1.0, 0.5, 6.0, 0.01, 0.1, 0.0);
+  editor->slider_adjustment = gtk_adjustment_new (1.0, 0.5, 6.0,
+                                                  0.01, 0.1, 0.0);
 
   scale = gimp_spin_scale_new (editor->slider_adjustment, _ ("Power"), 2);
   gimp_spin_scale_set_constrain_drag (GIMP_SPIN_SCALE (scale), FALSE);
@@ -199,11 +217,16 @@ stylus_editor_constructed (GObject *object)
   gtk_widget_show (editor->pressure_label);
 
   editor->preset_combo = gtk_combo_box_text_new ();
-  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (editor->preset_combo), _("Default"));
-  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (editor->preset_combo), _("Light Touch"));
-  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (editor->preset_combo), _("Heavy Pressure"));
-  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (editor->preset_combo), _("Sketching"));
-  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (editor->preset_combo), _("Inking"));
+  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (editor->preset_combo),
+                                   _("Default"));
+  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (editor->preset_combo),
+                                   _("Light Touch"));
+  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (editor->preset_combo),
+                                   _("Heavy Pressure"));
+  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (editor->preset_combo),
+                                   _("Sketching"));
+  gtk_combo_box_text_append_text (GTK_COMBO_BOX_TEXT (editor->preset_combo),
+                                   _("Inking"));
   gtk_combo_box_set_active (GTK_COMBO_BOX (editor->preset_combo), 0);
   gtk_box_pack_start (GTK_BOX (box_in_frame), editor->preset_combo, FALSE, FALSE, 0);
   gtk_widget_show (editor->preset_combo);
@@ -215,21 +238,25 @@ stylus_editor_constructed (GObject *object)
   gtk_box_pack_start (GTK_BOX (box_in_frame), reset_button_box, FALSE, FALSE, 0);
   gtk_widget_show (reset_button_box);
 
-  editor->natural_curve_button = gtk_button_new_with_label (_ ("Reset Curve"));
-  gtk_box_pack_start (GTK_BOX (reset_button_box), editor->natural_curve_button, TRUE, TRUE, 0);
+  editor->natural_curve_button = gtk_button_new_with_label (_("Reset Curve"));
+  gtk_box_pack_start (GTK_BOX (reset_button_box),
+                      editor->natural_curve_button, TRUE, TRUE, 0);
   gtk_widget_show (editor->natural_curve_button);
   g_signal_connect (editor->natural_curve_button, "clicked",
                     G_CALLBACK (stylus_editor_natural_curve_clicked), editor);
 
-  editor->reset_all_button = gtk_button_new_with_label (_ ("Reset All Curves"));
-  gtk_box_pack_start (GTK_BOX (reset_button_box), editor->reset_all_button, TRUE, TRUE, 0);
+  editor->reset_all_button = gtk_button_new_with_label (_("Reset All Curves"));
+  gtk_box_pack_start (GTK_BOX (reset_button_box), editor->reset_all_button,
+                      TRUE, TRUE, 0);
   gtk_widget_show (editor->reset_all_button);
   g_signal_connect (editor->reset_all_button, "clicked",
                     G_CALLBACK (stylus_editor_reset_all_curves_clicked), editor);
 
-  editor->calibrate_button = gtk_button_new_with_label (_ ("Calibrate Pressure..."));
+  editor->calibrate_button =
+    gtk_button_new_with_label (_("Calibrate Pressure..."));
   
-  gtk_box_pack_start (GTK_BOX (box_in_frame), editor->calibrate_button, FALSE, FALSE, 0);
+  gtk_box_pack_start (GTK_BOX (box_in_frame), editor->calibrate_button,
+                      FALSE, FALSE, 0);
   gtk_widget_show (editor->calibrate_button);
 
   g_signal_connect (editor->calibrate_button, "clicked",
@@ -253,7 +280,12 @@ stylus_editor_constructed (GObject *object)
   g_signal_connect (editor->curve_view, "scroll-event",
                     G_CALLBACK (stylus_editor_block_events), NULL);
   
-  gtk_box_pack_start (GTK_BOX (box_in_frame), editor->curve_view, FALSE, FALSE, 0);
+  /* Connect custom draw handler for centered white axis labels */
+  g_signal_connect_after (editor->curve_view, "draw",
+                          G_CALLBACK (stylus_editor_curve_draw), editor);
+  
+  gtk_box_pack_start (GTK_BOX (box_in_frame), editor->curve_view,
+                      FALSE, FALSE, 0);
   gtk_widget_show (editor->curve_view);
 
   g_timeout_add (100, stylus_editor_update_pressure, editor);
@@ -262,17 +294,22 @@ stylus_editor_constructed (GObject *object)
 }
 
 static void
-stylus_editor_slider_changed (GtkAdjustment *adjustment, StylusEditor *editor)
+stylus_editor_slider_changed (GtkAdjustment *adjustment,
+                               StylusEditor  *editor)
 {
   current_power_setting = gtk_adjustment_get_value (adjustment);
 
-  g_print ("Power setting: %.2f (will be applied on next calibration)\n", current_power_setting);
+  g_print ("Power setting: %.2f (will be applied on next calibration)\n",
+           current_power_setting);
 }
 
 static void
-stylus_editor_preset_changed (GtkComboBox *combo, StylusEditor *editor)
+stylus_editor_preset_changed (GtkComboBox  *combo,
+                               StylusEditor *editor)
 {
-  gchar *preset_name = gtk_combo_box_text_get_active_text (GTK_COMBO_BOX_TEXT (combo));
+  gchar *preset_name;
+
+  preset_name = gtk_combo_box_text_get_active_text (GTK_COMBO_BOX_TEXT (combo));
 
   g_print ("Preset changed to: %s (placeholder - does nothing yet)\n",
           preset_name ? preset_name : "(none)");
@@ -281,12 +318,13 @@ stylus_editor_preset_changed (GtkComboBox *combo, StylusEditor *editor)
 }
 
 static void
-stylus_editor_natural_curve_clicked (GtkButton *button, StylusEditor *editor)
+stylus_editor_natural_curve_clicked (GtkButton    *button,
+                                      StylusEditor *editor)
 {
   GimpDeviceManager *device_manager;
-  GimpDeviceInfo *device_info;
-  GimpCurve *pressure_curve;
-  const gchar *brush_name;
+  GimpDeviceInfo    *device_info;
+  GimpCurve         *pressure_curve;
+  const gchar       *brush_name;
 
   if (!editor->context)
     {
@@ -318,7 +356,8 @@ stylus_editor_natural_curve_clicked (GtkButton *button, StylusEditor *editor)
   if (editor->current_brush)
     {
       brush_name = gimp_object_get_name (GIMP_OBJECT (editor->current_brush));
-      g_print ("\n=== Resetting Curve for Brush '%s' ===\n", brush_name);
+      g_print ("\n=== Resetting Curve for Brush '%s' ===\n",
+               brush_name);
 
       g_hash_table_remove (editor->brush_curves, brush_name);
       g_print ("  Removed stored curve for brush '%s'\n", brush_name);
@@ -328,7 +367,8 @@ stylus_editor_natural_curve_clicked (GtkButton *button, StylusEditor *editor)
       g_print ("\n=== Resetting Pressure Curve to Linear (x1.0) ===\n");
     }
 
-  g_print ("  Resetting device: %s\n", gimp_object_get_name (device_info));
+  g_print ("  Resetting device: %s\n",
+           gimp_object_get_name (device_info));
   gimp_curve_reset (pressure_curve, FALSE);
   
   g_print ("Pressure curve reset to linear (x1.0)\n");
@@ -341,11 +381,12 @@ stylus_editor_natural_curve_clicked (GtkButton *button, StylusEditor *editor)
 }
 
 static void
-stylus_editor_reset_all_curves_clicked (GtkButton *button, StylusEditor *editor)
+stylus_editor_reset_all_curves_clicked (GtkButton    *button,
+                                         StylusEditor *editor)
 {
   GimpDeviceManager *device_manager;
-  GimpDeviceInfo *device_info;
-  GimpCurve *pressure_curve;
+  GimpDeviceInfo    *device_info;
+  GimpCurve         *pressure_curve;
 
   if (!editor->context)
     {
@@ -359,7 +400,7 @@ stylus_editor_reset_all_curves_clicked (GtkButton *button, StylusEditor *editor)
       g_print ("No device manager available.\n");
       return;
     }
-  
+
   g_print ("\n=== Resetting ALL Pressure Curves to Linear (x1.0) ===\n");
 
   g_hash_table_remove_all (editor->brush_curves);
@@ -374,25 +415,29 @@ stylus_editor_reset_all_curves_clicked (GtkButton *button, StylusEditor *editor)
 
   {
     GimpContainer *container = GIMP_CONTAINER (device_manager);
-    GList *list;
+    GList         *list;
 
-    for (list = GIMP_LIST (container)->queue->head; list; list = g_list_next (list))
+    for (list = GIMP_LIST (container)->queue->head; list;
+         list = g_list_next (list))
       {
         device_info = GIMP_DEVICE_INFO (list->data);
 
-        pressure_curve = gimp_device_info_get_curve (device_info, GDK_AXIS_PRESSURE);
+        pressure_curve = gimp_device_info_get_curve (device_info,
+                                                     GDK_AXIS_PRESSURE);
         if (!pressure_curve)
           {
-            g_print ("  Skipping '%s' (no pressure curve)\n", gimp_object_get_name (device_info));
-          continue;
-        }
+            g_print ("  Skipping '%s' (no pressure curve)\n",
+                     gimp_object_get_name (device_info));
+            continue;
+          }
 
-        g_print ("  Resetting device: %s\n", gimp_object_get_name (device_info));
+        g_print ("  Resetting device: %s\n",
+                 gimp_object_get_name (device_info));
 
         gimp_curve_reset (pressure_curve, FALSE);
       }
   }
-  
+
   g_print ("All pressure curves reset to linear (x1.0)\n");
   g_print ("All per-brush curves cleared\n");
   g_print ("==========================================\n\n");
@@ -404,7 +449,8 @@ stylus_editor_reset_all_curves_clicked (GtkButton *button, StylusEditor *editor)
 }
 
 static void
-stylus_editor_calibrate_clicked (GtkButton *button, StylusEditor *editor)
+stylus_editor_calibrate_clicked (GtkButton    *button,
+                                  StylusEditor *editor)
 {
   GtkWidget *dialog;
   GtkWidget *toplevel;
@@ -417,22 +463,24 @@ stylus_editor_calibrate_clicked (GtkButton *button, StylusEditor *editor)
     toplevel = NULL;
 
   dialog = gimp_pressure_calibration_dialog_new (editor->context, toplevel);
-  
+
   g_signal_connect (dialog, "response",
-                   G_CALLBACK (gtk_widget_destroy), NULL);
+                    G_CALLBACK (gtk_widget_destroy), NULL);
 
   gtk_widget_show (dialog);
   gtk_dialog_run (GTK_DIALOG (dialog));
 }
 
 static gboolean
-stylus_editor_block_events (GtkWidget *widget, GdkEvent *event, gpointer user_data)
+stylus_editor_block_events (GtkWidget *widget,
+                             GdkEvent  *event,
+                             gpointer   user_data)
 {
   if (event->type == GDK_BUTTON_PRESS)
     {
       GimpCurveView *curve_view = GIMP_CURVE_VIEW (widget);
-      GimpCurve *curve;
-      
+      GimpCurve     *curve;
+
       curve = gimp_curve_view_get_curve (curve_view);
       if (curve)
         {
@@ -440,18 +488,21 @@ stylus_editor_block_events (GtkWidget *widget, GdkEvent *event, gpointer user_da
 
           if (n_points >= 3)
             {
-              gint width;
-              gint height;
+              gint    width;
+              gint    height;
               gdouble curve_x;
               gdouble curve_y;
-              gint point_index;
+              gint    point_index;
 
-              g_print("points:%d\n", n_points);
+              g_print ("points:%d\n", n_points);
               width = gtk_widget_get_allocated_width (widget);
               height = gtk_widget_get_allocated_height (widget);
               curve_x = event->button.x / (gdouble) width;
               curve_y = 1.0 - (event->button.y / (gdouble) height);
-              point_index = gimp_curve_get_closest_point (curve, curve_x, curve_y, 0.05);
+              point_index = gimp_curve_get_closest_point (curve,
+                                                          curve_x,
+                                                          curve_y,
+                                                          0.05);
 
               if (point_index < 0)
                 {
@@ -467,12 +518,12 @@ stylus_editor_block_events (GtkWidget *widget, GdkEvent *event, gpointer user_da
 static gboolean
 stylus_editor_update_pressure (gpointer data)
 {
-  StylusEditor *editor = STYLUS_EDITOR (data);
+  StylusEditor      *editor = STYLUS_EDITOR (data);
   GimpDeviceManager *device_manager;
-  GimpDeviceInfo *device_info;
-  GimpCoords coords;
-  gchar *text;
-  GdkWindow *window;
+  GimpDeviceInfo    *device_info;
+  GimpCoords         coords;
+  gchar             *text;
+  GdkWindow         *window;
 
   if (!editor->context)
     return TRUE;
@@ -493,16 +544,16 @@ stylus_editor_update_pressure (gpointer data)
     {
       gimp_device_info_get_device_coords (device_info, window, &coords);
 
-      text = g_strdup_printf (_ ("%s - Pressure: %.3f"), 
-                             gimp_object_get_name (GIMP_OBJECT (device_info)),
-                             coords.pressure);
+      text = g_strdup_printf (_("%s - Pressure: %.3f"),
+                              gimp_object_get_name (GIMP_OBJECT (device_info)),
+                              coords.pressure);
       gtk_label_set_text (GTK_LABEL (editor->pressure_label), text);
       g_free (text);
     }
   else
     {
-      text = g_strdup_printf (_ ("Device: %s"), 
-                             gimp_object_get_name (GIMP_OBJECT (device_info)));
+      text = g_strdup_printf (_("Device: %s"),
+                              gimp_object_get_name (GIMP_OBJECT (device_info)));
       gtk_label_set_text (GTK_LABEL (editor->pressure_label), text);
       g_free (text);
     }
@@ -510,88 +561,146 @@ stylus_editor_update_pressure (gpointer data)
   return TRUE;
 }
 
-GtkWidget *
-stylus_editor_new (GimpContext *context, GimpMenuFactory *menu_factory)
+/*  Private functions  */
+
+static gboolean
+stylus_editor_curve_draw (GtkWidget    *widget,
+                           cairo_t      *cr,
+                           StylusEditor *editor)
 {
-  GtkWidget *dock;
+  PangoLayout *layout;
+  gint         width;
+  gint         height;
+  gint         layout_width;
+  gint         layout_height;
+  const gint   border = 6;  /* Match the border used in gimpcurveview.c */
+
+  /* Get widget dimensions */
+  width = gtk_widget_get_allocated_width (widget);
+  height = gtk_widget_get_allocated_height (widget);
+
+  /* Create pango layout for text rendering */
+  layout = gtk_widget_create_pango_layout (widget, NULL);
+
+  /* Set white color for labels */
+  cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
+
+  /* Draw X-axis label (centered horizontally at bottom) */
+  pango_layout_set_text (layout, _("pen pressure"), -1);
+  pango_layout_get_pixel_size (layout, &layout_width, &layout_height);
+
+  cairo_move_to (cr,
+                 border + (width / 2.0) - (layout_width / 2.0),
+                 height - border - layout_height);
+  pango_cairo_show_layout (cr, layout);
+
+  /* Draw Y-axis label (centered vertically on left side, rotated) */
+  pango_layout_set_text (layout, _("pressure"), -1);
+  pango_layout_get_pixel_size (layout, &layout_width, &layout_height);
+
+  cairo_save (cr);
+  cairo_move_to (cr,
+                 2 * border,
+                 border + (height / 2.0) + (layout_width / 2.0));
+  cairo_rotate (cr, - G_PI / 2);
+  pango_cairo_show_layout (cr, layout);
+  cairo_restore (cr);
+
+  /* Clean up */
+  g_object_unref (layout);
+
+  return FALSE;  /* Allow other handlers to run */
+}
+
+
+/*  Public functions  */
+
+GtkWidget *
+stylus_editor_new (GimpContext     *context,
+                   GimpMenuFactory *menu_factory)
+{
+  GtkWidget         *editor_widget;
+  StylusEditor      *editor;
+  GimpDeviceManager *device_manager;
+  GimpDeviceInfo    *device_info;
+  GimpCurve         *pressure_curve;
+  GimpCurve         *stored_curve;
+  const gchar       *brush_name;
 
   g_return_val_if_fail (GIMP_IS_CONTEXT (context), NULL);
 
-  dock = g_object_new (STYLUS_TYPE_EDITOR, "context", context,
-                      "menu-identifier", "<StylusEditor>", NULL);
+  editor_widget = g_object_new (STYLUS_TYPE_EDITOR, "context", context,
+                                "menu-identifier", "<StylusEditor>", NULL);
 
-  if (STYLUS_EDITOR (dock))
+  editor = STYLUS_EDITOR (editor_widget);
+
+  editor->context = context;
+  g_object_ref (editor->context);
+
+  global_stylus_editor = editor;
+
+  g_signal_connect (editor->context, "brush-changed",
+                    G_CALLBACK (stylus_editor_brush_changed),
+                    editor);
+
+  editor->current_brush = gimp_context_get_brush (context);
+
+  stylus_editor_load_brush_curves (editor);
+
+  device_manager = gimp_devices_get_manager (context->gimp);
+  if (device_manager)
     {
-      StylusEditor *editor = STYLUS_EDITOR (dock);
-      GimpDeviceManager *device_manager;
-      GimpDeviceInfo *device_info;
-      GimpCurve *pressure_curve;
-      GimpCurve *stored_curve;
-      const gchar *brush_name;
-      
-      editor->context = context;
-      g_object_ref (editor->context);
-
-      global_stylus_editor = editor;
-
-      g_signal_connect (editor->context, "brush-changed",
-                        G_CALLBACK (stylus_editor_brush_changed),
-                        editor);
-
-      editor->current_brush = gimp_context_get_brush (context);
-
-      stylus_editor_load_brush_curves (editor);
-
-      device_manager = gimp_devices_get_manager (context->gimp);
-      if (device_manager)
+      device_info = gimp_device_manager_get_current_device (device_manager);
+      if (device_info && editor->curve_view)
         {
-          device_info = gimp_device_manager_get_current_device (device_manager);
-          if (device_info && editor->curve_view)
-            {
-              stored_curve = NULL;
+          stored_curve = NULL;
 
-              if (editor->current_brush)
+          if (editor->current_brush)
+            {
+              brush_name = gimp_object_get_name (GIMP_OBJECT (editor->current_brush));
+              stored_curve = g_hash_table_lookup (editor->brush_curves,
+                                                   brush_name);
+
+              if (stored_curve)
                 {
-                  brush_name = gimp_object_get_name (GIMP_OBJECT (editor->current_brush));
-                  stored_curve = g_hash_table_lookup (editor->brush_curves, brush_name);
-                  
-                  if (stored_curve)
+                  g_print ("Applying stored curve for initial brush '%s'\n",
+                           brush_name);
+                  pressure_curve = gimp_device_info_get_curve (device_info,
+                                                               GDK_AXIS_PRESSURE);
+                  if (pressure_curve)
                     {
-                      g_print ("Applying stored curve for initial brush '%s'\n", brush_name);
-                      pressure_curve = gimp_device_info_get_curve (device_info, GDK_AXIS_PRESSURE);
-                      if (pressure_curve)
-                        {
-                          gimp_config_copy (GIMP_CONFIG (stored_curve),
-                                           GIMP_CONFIG (pressure_curve),
-                                           GIMP_CONFIG_PARAM_SERIALIZE);
-                        }
+                      gimp_config_copy (GIMP_CONFIG (stored_curve),
+                                        GIMP_CONFIG (pressure_curve),
+                                        GIMP_CONFIG_PARAM_SERIALIZE);
                     }
                 }
+            }
 
-              pressure_curve = gimp_device_info_get_curve (device_info, GDK_AXIS_PRESSURE);
-              if (pressure_curve)
-                {
-                  gimp_curve_view_set_curve (GIMP_CURVE_VIEW (editor->curve_view), 
-                                            pressure_curve, NULL);
-                  
-                  g_signal_connect (pressure_curve, "dirty",
-                                    G_CALLBACK (stylus_editor_curve_dirty),
-                                    editor);
-                  
-                  editor->curve_view_device = device_info;
-                  
-                  g_print ("Curve view set to device: %s\n",
-                          gimp_object_get_name (GIMP_OBJECT (device_info)));
-                }
+          pressure_curve = gimp_device_info_get_curve (device_info,
+                                                       GDK_AXIS_PRESSURE);
+          if (pressure_curve)
+            {
+              gimp_curve_view_set_curve (GIMP_CURVE_VIEW (editor->curve_view),
+                                         pressure_curve, NULL);
+
+              g_signal_connect (pressure_curve, "dirty",
+                                G_CALLBACK (stylus_editor_curve_dirty),
+                                editor);
+
+              editor->curve_view_device = device_info;
+
+              g_print ("Curve view set to device: %s\n",
+                       gimp_object_get_name (GIMP_OBJECT (device_info)));
             }
         }
     }
 
-  return dock;
+  return editor_widget;
 }
 
 static void
-stylus_editor_curve_dirty (GimpCurve *curve, StylusEditor *editor)
+stylus_editor_curve_dirty (GimpCurve    *curve,
+                            StylusEditor *editor)
 {
   if (!editor->context)
     return;
@@ -605,22 +714,23 @@ stylus_editor_curve_dirty (GimpCurve *curve, StylusEditor *editor)
 }
 
 static void
-stylus_editor_brush_changed (GimpContext *context,
-                             GimpBrush   *brush,
-                             StylusEditor *editor)
+stylus_editor_brush_changed (GimpContext  *context,
+                              GimpBrush    *brush,
+                              StylusEditor *editor)
 {
   GimpDeviceManager *device_manager;
-  GimpDeviceInfo *device_info;
-  GimpCurve *stored_curve;
-  GimpCurve *device_curve;
-  const gchar *brush_name;
+  GimpDeviceInfo    *device_info;
+  GimpCurve         *stored_curve;
+  GimpCurve         *device_curve;
+  const gchar       *brush_name;
 
   if (!brush)
     return;
 
   brush_name = gimp_object_get_name (GIMP_OBJECT (brush));
   g_print ("\n=== Brush Changed to: %s ===\n", brush_name);
-  g_print ("  Hash table size: %d\n", g_hash_table_size (editor->brush_curves));
+  g_print ("  Hash table size: %d\n",
+           g_hash_table_size (editor->brush_curves));
 
   device_manager = gimp_devices_get_manager (context->gimp);
   if (!device_manager)
@@ -636,9 +746,11 @@ stylus_editor_brush_changed (GimpContext *context,
       return;
     }
 
-  g_print ("  Device: %s\n", gimp_object_get_name (GIMP_OBJECT (device_info)));
+  g_print ("  Device: %s\n",
+           gimp_object_get_name (GIMP_OBJECT (device_info)));
 
-  device_curve = gimp_device_info_get_curve (device_info, GDK_AXIS_PRESSURE);
+  device_curve = gimp_device_info_get_curve (device_info,
+                                             GDK_AXIS_PRESSURE);
   if (!device_curve)
     {
       g_print ("  ERROR: No device curve!\n");
@@ -647,8 +759,10 @@ stylus_editor_brush_changed (GimpContext *context,
 
   if (editor->curve_view_device)
     {
-      GimpCurve *old_curve = gimp_device_info_get_curve (editor->curve_view_device,
-                                                          GDK_AXIS_PRESSURE);
+      GimpCurve *old_curve;
+
+      old_curve = gimp_device_info_get_curve (editor->curve_view_device,
+                                              GDK_AXIS_PRESSURE);
       if (old_curve)
         {
           g_signal_handlers_disconnect_by_func (old_curve,
@@ -658,15 +772,17 @@ stylus_editor_brush_changed (GimpContext *context,
     }
 
   stored_curve = g_hash_table_lookup (editor->brush_curves, brush_name);
-  g_print ("  Stored curve lookup result: %p\n", (void*)stored_curve);
+  g_print ("  Stored curve lookup result: %p\n",
+           (void *) stored_curve);
 
   if (stored_curve)
     {
-      g_print ("  Found stored curve for brush '%s', applying it\n", brush_name);
+      g_print ("  Found stored curve for brush '%s', applying it\n",
+               brush_name);
 
       gimp_config_copy (GIMP_CONFIG (stored_curve),
-                       GIMP_CONFIG (device_curve),
-                       GIMP_CONFIG_PARAM_SERIALIZE);
+                        GIMP_CONFIG (device_curve),
+                        GIMP_CONFIG_PARAM_SERIALIZE);
     }
   else
     {
@@ -676,8 +792,8 @@ stylus_editor_brush_changed (GimpContext *context,
         {
           g_print ("  Applying global default curve\n");
           gimp_config_copy (GIMP_CONFIG (editor->global_default_curve),
-                           GIMP_CONFIG (device_curve),
-                           GIMP_CONFIG_PARAM_SERIALIZE);
+                            GIMP_CONFIG (device_curve),
+                            GIMP_CONFIG_PARAM_SERIALIZE);
         }
       else
         {
@@ -689,7 +805,7 @@ stylus_editor_brush_changed (GimpContext *context,
   if (editor->curve_view)
     {
       gimp_curve_view_set_curve (GIMP_CURVE_VIEW (editor->curve_view),
-                                device_curve, NULL);
+                                 device_curve, NULL);
     }
 
   g_signal_connect (device_curve, "dirty",
@@ -709,64 +825,72 @@ stylus_editor_get_power (Gimp *gimp)
 }
 
 void
-stylus_editor_store_curve (Gimp *gimp, GimpCurve *curve, gboolean apply_to_all)
+stylus_editor_store_curve (Gimp       *gimp,
+                            GimpCurve  *curve,
+                            gboolean    apply_to_all)
 {
   if (!global_stylus_editor)
     {
-      g_print ("Warning: No stylus editor instance available for per-brush curves\n");
+      g_print ("Warning: No stylus editor instance available "
+               "for per-brush curves\n");
       return;
     }
 
   g_print ("\n=== stylus_editor_store_curve called ===\n");
   g_print ("  apply_to_all: %s\n", apply_to_all ? "YES" : "NO");
-  g_print ("  Hash table size BEFORE: %d\n", g_hash_table_size (global_stylus_editor->brush_curves));
+  g_print ("  Hash table size BEFORE: %d\n",
+           g_hash_table_size (global_stylus_editor->brush_curves));
 
   if (apply_to_all)
     {
-      g_print ("  Storing curve for ALL brushes (setting as global default)\n");
+      g_print ("  Storing curve for ALL brushes "
+               "(setting as global default)\n");
 
       g_hash_table_remove_all (global_stylus_editor->brush_curves);
 
       if (global_stylus_editor->global_default_curve)
         g_object_unref (global_stylus_editor->global_default_curve);
-      
-      global_stylus_editor->global_default_curve = 
+
+      global_stylus_editor->global_default_curve =
         GIMP_CURVE (gimp_config_duplicate (GIMP_CONFIG (curve)));
-      
+
       g_print ("  Set global default curve\n");
     }
   else if (global_stylus_editor->current_brush)
     {
-      const gchar *brush_name = gimp_object_get_name (GIMP_OBJECT (global_stylus_editor->current_brush));
-      GimpCurve *curve_copy;
+      const gchar *brush_name;
+      GimpCurve   *curve_copy;
+
+      brush_name = gimp_object_get_name (GIMP_OBJECT (global_stylus_editor->current_brush));
 
       g_print ("  Storing curve for brush '%s'\n", brush_name);
 
       curve_copy = GIMP_CURVE (gimp_config_duplicate (GIMP_CONFIG (curve)));
 
       g_hash_table_insert (global_stylus_editor->brush_curves,
-                          g_strdup (brush_name),
-                          curve_copy);
-      
+                           g_strdup (brush_name),
+                           curve_copy);
+
       g_print ("  Successfully stored in hash table\n");
     }
   else
     {
       g_print ("  ERROR: No current brush set!\n");
     }
-  
-  g_print ("  Hash table size AFTER: %d\n", g_hash_table_size (global_stylus_editor->brush_curves));
+
+  g_print ("  Hash table size AFTER: %d\n",
+           g_hash_table_size (global_stylus_editor->brush_curves));
   g_print ("======================================\n\n");
 
   stylus_editor_save_brush_curves (global_stylus_editor);
 }
 
-const gchar*
+const gchar *
 stylus_editor_get_current_brush_name (Gimp *gimp)
 {
   if (!global_stylus_editor || !global_stylus_editor->current_brush)
     return NULL;
-  
+
   return gimp_object_get_name (GIMP_OBJECT (global_stylus_editor->current_brush));
 }
 
@@ -774,9 +898,9 @@ static void
 stylus_editor_save_brush_curves (StylusEditor *editor)
 {
   GimpConfigWriter *writer;
-  GFile *file;
-  GList *keys;
-  GList *iter;
+  GFile            *file;
+  GList            *keys;
+  GList            *iter;
 
   if (!editor || !editor->context)
     return;
@@ -789,10 +913,11 @@ stylus_editor_save_brush_curves (StylusEditor *editor)
   writer = gimp_config_writer_new_from_file (file,
                                              TRUE,
                                              "GIMP brush curves\n\n"
-                                             "This file stores per-brush pressure curves.",
+                                             "This file stores per-brush "
+                                             "pressure curves.",
                                              NULL);
   g_object_unref (file);
-  
+
   if (!writer)
     return;
 
@@ -801,9 +926,12 @@ stylus_editor_save_brush_curves (StylusEditor *editor)
   for (iter = keys; iter; iter = iter->next)
     {
       const gchar *brush_name = iter->data;
-      GimpCurve *curve = g_hash_table_lookup (editor->brush_curves, brush_name);
+      GimpCurve   *curve;
 
-      g_print ("  Saving brush '%s' -> curve %p\n", brush_name, (void*)curve);
+      curve = g_hash_table_lookup (editor->brush_curves, brush_name);
+
+      g_print ("  Saving brush '%s' -> curve %p\n",
+               brush_name, (void *) curve);
 
       if (curve)
         {
@@ -813,30 +941,32 @@ stylus_editor_save_brush_curves (StylusEditor *editor)
           gimp_config_writer_open (writer, "curve");
           gimp_config_serialize_properties (GIMP_CONFIG (curve), writer);
           gimp_config_writer_close (writer);
-          
+
           gimp_config_writer_close (writer);
         }
     }
-  
+
   g_list_free (keys);
 
   if (editor->global_default_curve)
     {
-      g_print ("  Saving global default curve -> %p\n", (void*)editor->global_default_curve);
+      g_print ("  Saving global default curve -> %p\n",
+               (void *) editor->global_default_curve);
 
       gimp_config_writer_open (writer, "global-default-curve");
 
       gimp_config_writer_open (writer, "curve");
-      gimp_config_serialize_properties (GIMP_CONFIG (editor->global_default_curve), writer);
+      gimp_config_serialize_properties (GIMP_CONFIG (editor->global_default_curve),
+                                        writer);
       gimp_config_writer_close (writer);
-      
+
       gimp_config_writer_close (writer);
     }
-  
+
   gimp_config_writer_finish (writer, "end of brush curves", NULL);
-  
+
   g_print ("Saved %d brush curves to brushcurvesrc\n",
-          g_hash_table_size (editor->brush_curves));
+           g_hash_table_size (editor->brush_curves));
   if (editor->global_default_curve)
     g_print ("Saved global default curve\n");
   g_print ("===========================\n\n");
@@ -845,11 +975,11 @@ stylus_editor_save_brush_curves (StylusEditor *editor)
 static void
 stylus_editor_load_brush_curves (StylusEditor *editor)
 {
-  GFile *file;
-  GScanner *scanner;
-  GTokenType token;
-  GList *loaded_keys;
-  GList *loaded_iter;
+  GFile      *file;
+  GScanner   *scanner;
+  GTokenType  token;
+  GList      *loaded_keys;
+  GList      *loaded_iter;
 
   if (!editor || !editor->context)
     return;
@@ -861,35 +991,39 @@ stylus_editor_load_brush_curves (StylusEditor *editor)
 
   scanner = gimp_scanner_new_file (file, NULL);
   g_object_unref (file);
-  
+
   if (!scanner)
     {
-      g_print ("No saved brush curves found (this is normal on first run)\n");
+      g_print ("No saved brush curves found "
+               "(this is normal on first run)\n");
       return;
     }
-  
-  g_scanner_scope_add_symbol (scanner, 0, "brush-curve", GINT_TO_POINTER (0));
-  g_scanner_scope_add_symbol (scanner, 0, "global-default-curve", GINT_TO_POINTER (2));
-  g_scanner_scope_add_symbol (scanner, 0, "curve", GINT_TO_POINTER (1));
+
+  g_scanner_scope_add_symbol (scanner, 0, "brush-curve",
+                               GINT_TO_POINTER (0));
+  g_scanner_scope_add_symbol (scanner, 0, "global-default-curve",
+                               GINT_TO_POINTER (2));
+  g_scanner_scope_add_symbol (scanner, 0, "curve",
+                               GINT_TO_POINTER (1));
 
   while (g_scanner_peek_next_token (scanner) == G_TOKEN_LEFT_PAREN)
     {
       g_print ("  ===== Starting new brush-curve iteration =====\n");
-      
+
       token = g_scanner_get_next_token (scanner);
       g_print ("  Consumed LEFT_PAREN: %d\n", token);
-      
+
       if (token != G_TOKEN_LEFT_PAREN)
         {
           g_print ("  ERROR: Expected LEFT_PAREN but got %d\n", token);
           break;
         }
-      
+
       token = g_scanner_get_next_token (scanner);
       g_print ("  Next token (should be symbol): %d\n", token);
-      
+
       if (token == G_TOKEN_SYMBOL &&
-          scanner->value.v_symbol == GINT_TO_POINTER (0)) /* brush-curve */
+          scanner->value.v_symbol == GINT_TO_POINTER (0))  /* brush-curve */
         {
           gchar *brush_name = NULL;
           GimpCurve *curve;
