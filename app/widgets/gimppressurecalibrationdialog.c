@@ -339,7 +339,7 @@ drawing_area_motion_notify (GtkWidget      *widget,
       pressure = 0.5;
     }
 
-  g_array_append_val (dialog->pressure_samples, pressure);
+
 
   current_time = event->time;
 
@@ -355,6 +355,7 @@ drawing_area_motion_notify (GtkWidget      *widget,
         {
           velocity = distance / time_delta;
 
+          g_array_append_val (dialog->pressure_samples, pressure);
           g_array_append_val (dialog->velocity_samples, velocity);
 
           g_print ("Time Delta: %.4f sec | Distance: %.2f px | Velocity: %.2f px/s | Pressure: %.3f\n",
@@ -432,6 +433,14 @@ clear_button_clicked (GtkButton *button,
 
   gtk_widget_queue_draw (dialog->drawing_area);
 }
+static gint
+compare_double(const gdouble *a, const gdouble *b)
+{
+  gdouble val_a = *(const gdouble *) a;
+  gdouble val_b = *(const gdouble *) b;
+
+  return (val_a > val_b) - (val_a < val_b);
+}
 
 static void
 apply_button_clicked (GtkButton *button,
@@ -442,9 +451,6 @@ apply_button_clicked (GtkButton *button,
   GimpCurve *pressure_curve;
   gdouble min_pressure;
   gdouble max_pressure;
-  gdouble avg_pressure;
-  gdouble median_pressure;
-  gdouble sum;
   guint i;
   gchar *text;
   gdouble exponent;
@@ -452,6 +458,14 @@ apply_button_clicked (GtkButton *button,
   gdouble max_velocity = 0.0;
   gdouble avg_velocity = 0.0;
   gdouble velocity_strength;
+  gdouble velocity_max = 0.0;
+  gdouble velocity_min = 0.0;
+  gint p_len = 0;
+  gint v_len = 0;
+  GArray *V;
+  GArray *sortedVelocity;
+  GArray *sorted_pressures;
+  gdouble e = M_E;
 
   if (dialog->pressure_samples->len < 10)
     {
@@ -463,70 +477,31 @@ apply_button_clicked (GtkButton *button,
 
   min_pressure = 1.0;
   max_pressure = 0.0;
-  sum = 0.0;
 
   for (i = 0; i < dialog->pressure_samples->len; i++)
     {
       gdouble p = g_array_index (dialog->pressure_samples, gdouble, i);
       if (p < min_pressure) min_pressure = p;
       if (p > max_pressure) max_pressure = p;
-      sum += p;
     }
 
-  avg_pressure = sum / dialog->pressure_samples->len;
 
 
   {
-    GArray *sorted_pressures = g_array_sized_new (FALSE, FALSE, sizeof (gdouble),
+    sorted_pressures = g_array_sized_new (FALSE, FALSE, sizeof (gdouble),
                                                    dialog->pressure_samples->len);
+
+
     for (i = 0; i < dialog->pressure_samples->len; i++)
       {
         gdouble p = g_array_index (dialog->pressure_samples, gdouble, i);
         g_array_append_val (sorted_pressures, p);
       }
 
+    g_array_sort (sorted_pressures, (GCompareFunc) compare_double);
 
-    {
-      gboolean swapped;
-      do
-        {
-          swapped = FALSE;
-          for (i = 0; i < sorted_pressures->len - 1; i++)
-            {
-              gdouble p1 = g_array_index (sorted_pressures, gdouble, i);
-              gdouble p2 = g_array_index (sorted_pressures, gdouble, i + 1);
-              if (p1 > p2)
-                {
 
-                  g_array_index (sorted_pressures, gdouble, i) = p2;
-                  g_array_index (sorted_pressures, gdouble, i + 1) = p1;
-                  swapped = TRUE;
-                }
-            }
-        }
-      while (swapped);
-    }
 
-    if (sorted_pressures->len > 0)
-      {
-        guint mid = sorted_pressures->len / 2;
-        if (sorted_pressures->len % 2 == 0)
-          {
-            gdouble p1 = g_array_index (sorted_pressures, gdouble, mid - 1);
-            gdouble p2 = g_array_index (sorted_pressures, gdouble, mid);
-            median_pressure = (p1 + p2) / 2.0;
-          }
-        else
-          {
-            median_pressure = g_array_index (sorted_pressures, gdouble, mid);
-          }
-      }
-    else
-      {
-        median_pressure = 0.5;
-      }
-
-    g_array_free (sorted_pressures, TRUE);
   }
 
   min_velocity = G_MAXDOUBLE;
@@ -563,12 +538,38 @@ apply_button_clicked (GtkButton *button,
       velocity_strength = 1.0;
     }
 
-  g_print ("\n=== Applying Sigmoid-Based Calibration ===\n");
-  g_print ("Pressure analysis: min=%.3f, max=%.3f, avg=%.3f, median=%.3f, samples=%d\n",
-          min_pressure, max_pressure, avg_pressure, median_pressure, dialog->pressure_samples->len);
-  g_print ("Velocity analysis: avg=%.2f px/s → scaling factor=%.3f\n",
-          avg_velocity, velocity_strength);
-  g_print ("Power setting: %.2f\n", exponent);
+    p_len = dialog->pressure_samples->len;
+    v_len = dialog->velocity_samples->len;
+
+    V = g_array_sized_new (FALSE, FALSE, sizeof (gdouble), v_len);
+    sortedVelocity = g_array_sized_new (FALSE, FALSE, sizeof (gdouble), v_len);
+
+
+    for (guint i = 0; i < v_len; i++)
+      {
+        gdouble v = g_array_index (dialog->velocity_samples, gdouble, i);
+        g_array_append_val (sortedVelocity, v);
+      }
+
+    g_array_sort (sortedVelocity, (GCompareFunc) compare_double);
+    velocity_min = g_array_index (sortedVelocity, gdouble, 0);
+    velocity_max = g_array_index (sortedVelocity, gdouble, sortedVelocity->len - 1);
+    g_print ("velocity_min: %f, velocity_max: %f\n", velocity_min, velocity_max);
+    g_print ("Pressure_min: %f, Pressure_max: %f\n", min_pressure, max_pressure);
+    for (guint i = 0; i < v_len; i++)
+      {
+        gdouble v = g_array_index (dialog->velocity_samples, gdouble, i);
+
+        gdouble Vn = 1 - ((v - velocity_min) / (velocity_max - velocity_min));
+
+        g_array_append_val (V, Vn);
+      }
+    g_array_free (sortedVelocity, TRUE);
+
+    for (guint i = 0; i < V->len; i++)
+      {
+        g_print ("V %d: %f\n", i, g_array_index (V, gdouble, i));
+      }
 
   if (dialog->context)
     {
@@ -593,74 +594,34 @@ apply_button_clicked (GtkButton *button,
 
               gimp_curve_set_curve_type (pressure_curve, GIMP_CURVE_SMOOTH);
               gimp_curve_clear_points (pressure_curve);
-              }
-              {
-                // Cubic Regression Curve
-                // B = (XT * X)^-1 * XT * Y
-                gint p_len = dialog->pressure_samples->len;
-                gint v_len = dialog->velocity_samples->len;
-                // gdouble X [4][p_len];
-                // gdouble XT [p_len][4];
-                // gdouble Y [v_len];
 
-                // for (i = 0; i < p_len; i++)
-                //   {
-                //     X[0][i] = 1.0;
-                //     X[1][i] = g_array_index (dialog->pressure_samples, gdouble, i);
-                //     X[2][i] = pow(g_array_index (dialog->pressure_samples, gdouble, i),2);
-                //     X[3][i] = pow(g_array_index (dialog->pressure_samples, gdouble, i),3);
-                //   }
 
-                // for (i = 0; i < v_len; i++)
-                // {
-                //   Y[i] = g_array_index (dialog->velocity_samples, gdouble, i);
-                // }
+              // Cubic Regression Curve
+              // B = (XT * X)^-1 * XT * Y
 
-                GArray *X = g_array_sized_new (FALSE, FALSE, sizeof (GArray *), p_len);
-                for (guint i = 0; i < p_len; i++)
-                  {
-                    GArray *row_array = g_array_sized_new (FALSE, FALSE, sizeof (gdouble), 4);
-                    // Pre-allocate space for 4 elements
-                    g_array_set_size (row_array, 4);
-                    g_array_append_val (X, row_array);
-                  }
 
-                // Populate each row with ones (1.0) at indices 0, 1, 2, 3
-                for (guint i = 0; i < X->len; i++)
-                  {
-                    GArray *row_array = g_array_index (X, GArray *, i);
-                    gdouble *row_data = (gdouble *) row_array->data;
-                    // need to get the value at pressure_samples[i]
-                    gdouble pressure_value = g_array_index (dialog->pressure_samples, gdouble, i);
-                    row_data[0] = 1.0;
-                    row_data[1] = pressure_value;
-                    row_data[2] = pow(pressure_value, 2);
-                    row_data[3] = pow(pressure_value, 3);
-                  }
 
-                // Print the values
-                for (guint i = 0; i < X->len; i++)
-                  {
-                    GArray *row_array = g_array_index (X, GArray *, i);
-                    g_print ("Row %d: %f, %f, %f, %f\n", i,
-                            g_array_index (row_array, gdouble, 0),
-                            g_array_index (row_array, gdouble, 1),
-                            g_array_index (row_array, gdouble, 2),
-                            g_array_index (row_array, gdouble, 3));
-                  }
+              // using the equation p(v) = pmin + (pmax-pmin)^(-k(1-p)) assign 10 points to the curve
 
-                // TODO: Free the 2D array when done
-                // for (guint i = 0; i < X->len; i++)
-                //   {
-                //     GArray *row_array = g_array_index (X, GArray *, i);
-                //     g_array_free (row_array, TRUE);
-                //   }
-                // g_array_free (X, TRUE);
-              }
+              for(guint i = 0; i < 10; i++)
+                {
+                  guint inc = p_len / 10;
+                  gdouble pressure_value = g_array_index (dialog->pressure_samples, gdouble, i*inc);
+                  gdouble velocity_value = g_array_index (V, gdouble, i*inc);
+                  gdouble exponent_value = (-2 * (1 - (pressure_value * velocity_value)));
 
+                  gdouble base = min_pressure + (max_pressure - min_pressure);
+
+                  gdouble p = base * pow(e, exponent_value);
+
+                  g_print ("p: %f\n", p);
+
+                  gimp_curve_add_point (pressure_curve, pressure_value, p);
+                }
+            }
         }
     }
-
+      g_array_free (sorted_pressures, TRUE);
   g_print ("Sigmoid calibration applied to all devices!\n");
   g_print ("=========================================\n\n");
 
