@@ -595,28 +595,90 @@ apply_button_clicked (GtkButton *button,
               gimp_curve_set_curve_type (pressure_curve, GIMP_CURVE_SMOOTH);
               gimp_curve_clear_points (pressure_curve);
 
+              // Fit logistic function to collected pressure data
+              // Logistic function: f(x) = 1 / (1 + e^(-k(x - x0)))
 
-              // Cubic Regression Curve
-              // B = (XT * X)^-1 * XT * Y
+              // Calculate statistics from collected pressure samples
+              gdouble median_pressure;
+              gdouble q1_pressure, q3_pressure;
+              gdouble iqr;  // Interquartile range
+              gdouble mean_pressure = 0.0;
+              gdouble variance = 0.0;
+              gdouble std_dev;
 
-
-
-              // using the equation p(v) = pmin + (pmax-pmin)^(-k(1-p)) assign 10 points to the curve
-
-              for(guint i = 0; i < 10; i++)
+              // Calculate mean
+              for (i = 0; i < dialog->pressure_samples->len; i++)
                 {
-                  guint inc = p_len / 10;
-                  gdouble pressure_value = g_array_index (dialog->pressure_samples, gdouble, i*inc);
-                  gdouble velocity_value = g_array_index (V, gdouble, i*inc);
-                  gdouble exponent_value = (-2 * (1 - (pressure_value * velocity_value)));
+                  gdouble p = g_array_index (dialog->pressure_samples, gdouble, i);
+                  mean_pressure += p;
+                }
+              mean_pressure /= dialog->pressure_samples->len;
 
-                  gdouble base = min_pressure + (max_pressure - min_pressure);
+              // Calculate standard deviation
+              for (i = 0; i < dialog->pressure_samples->len; i++)
+                {
+                  gdouble p = g_array_index (dialog->pressure_samples, gdouble, i);
+                  gdouble diff = p - mean_pressure;
+                  variance += diff * diff;
+                }
+              variance /= dialog->pressure_samples->len;
+              std_dev = sqrt (variance);
 
-                  gdouble p = base * pow(e, exponent_value);
+              // Calculate median and quartiles from sorted pressures
+              guint n = sorted_pressures->len;
+              if (n % 2 == 0)
+                {
+                  median_pressure = (g_array_index (sorted_pressures, gdouble, n/2 - 1) +
+                                    g_array_index (sorted_pressures, gdouble, n/2)) / 2.0;
+                }
+              else
+                {
+                  median_pressure = g_array_index (sorted_pressures, gdouble, n/2);
+                }
 
-                  g_print ("p: %f\n", p);
+              // Calculate quartiles
+              guint q1_idx = n / 4;
+              guint q3_idx = (3 * n) / 4;
+              q1_pressure = g_array_index (sorted_pressures, gdouble, q1_idx);
+              q3_pressure = g_array_index (sorted_pressures, gdouble, q3_idx);
+              iqr = q3_pressure - q1_pressure;
 
-                  gimp_curve_add_point (pressure_curve, pressure_value, p);
+              // Fit logistic parameters based on collected data
+              // Use median as the midpoint (where curve is steepest)
+              gdouble x0 = median_pressure;
+
+              // Use IQR or std_dev to determine steepness
+              // Wider spread = gentler curve (lower k), narrower spread = steeper curve (higher k)
+              // Scale k based on the spread relative to the full range
+              gdouble pressure_range = max_pressure - min_pressure;
+              gdouble spread_measure = (iqr > 0.0) ? iqr : std_dev;
+
+              // Normalize spread to [0, 1] range and map to k values
+              // k ranges from ~4 (gentle) to ~12 (steep)
+              gdouble normalized_spread = (pressure_range > 0.0) ?
+                                         (spread_measure / pressure_range) : 0.5;
+              gdouble k = 4.0 + (1.0 - normalized_spread) * 8.0;  // k in [4, 12]
+
+              // Clamp k to reasonable bounds
+              k = CLAMP (k, 4.0, 12.0);
+
+              g_print ("  Fitted logistic: k=%.2f, x0=%.3f (median=%.3f, spread=%.3f)\n",
+                      k, x0, median_pressure, spread_measure);
+
+              // Create curve points using fitted logistic function
+              // Map input pressure [0, 1] to output pressure [0, 1] with S-shape
+              for (guint i = 0; i <= 20; i++)
+                {
+                  gdouble x = i / 20.0;  // Input pressure from 0.0 to 1.0
+
+                  // Logistic function: f(x) = 1 / (1 + e^(-k(x - x0)))
+                  gdouble exp_term = -k * (x - x0);
+                  gdouble y = 1.0 / (1.0 + pow(e, exp_term));
+
+                  // Clamp to valid range (should already be in [0, 1])
+                  y = CLAMP (y, 0.0, 1.0);
+
+                  gimp_curve_add_point (pressure_curve, x, y);
                 }
             }
         }
