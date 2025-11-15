@@ -292,9 +292,8 @@ drawing_area_button_release (GtkWidget      *widget,
           gdouble min_velocity = G_MAXDOUBLE;
           gdouble max_velocity = 0.0;
           gdouble avg_velocity = 0.0;
-          guint i;
 
-          for (i = 0; i < dialog->velocity_samples->len; i++)
+          for (guint i = 0; i < dialog->velocity_samples->len; i++)
             {
               gdouble v = g_array_index (dialog->velocity_samples, gdouble, i);
               avg_velocity += v;
@@ -451,7 +450,6 @@ apply_button_clicked (GtkButton *button,
   GimpCurve *pressure_curve;
   gdouble min_pressure;
   gdouble max_pressure;
-  guint i;
   gchar *text;
   gdouble exponent;
   gdouble min_velocity = 0.0;
@@ -478,7 +476,8 @@ apply_button_clicked (GtkButton *button,
   min_pressure = 1.0;
   max_pressure = 0.0;
 
-  for (i = 0; i < dialog->pressure_samples->len; i++)
+
+  for (guint i = 0; i < dialog->pressure_samples->len; i++)
     {
       gdouble p = g_array_index (dialog->pressure_samples, gdouble, i);
       if (p < min_pressure) min_pressure = p;
@@ -492,7 +491,7 @@ apply_button_clicked (GtkButton *button,
                                                    dialog->pressure_samples->len);
 
 
-    for (i = 0; i < dialog->pressure_samples->len; i++)
+    for (guint i = 0; i < dialog->pressure_samples->len; i++)
       {
         gdouble p = g_array_index (dialog->pressure_samples, gdouble, i);
         g_array_append_val (sorted_pressures, p);
@@ -510,7 +509,7 @@ apply_button_clicked (GtkButton *button,
 
   if (dialog->velocity_samples->len > 0)
     {
-      for (i = 0; i < dialog->velocity_samples->len; i++)
+      for (guint i = 0; i < dialog->velocity_samples->len; i++)
         {
           gdouble v = g_array_index (dialog->velocity_samples, gdouble, i);
           if (v < min_velocity) min_velocity = v;
@@ -595,6 +594,8 @@ apply_button_clicked (GtkButton *button,
               gimp_curve_set_curve_type (pressure_curve, GIMP_CURVE_SMOOTH);
               gimp_curve_clear_points (pressure_curve);
 
+
+
               // Fit logistic function to collected pressure data
               // Logistic function: f(x) = 1 / (1 + e^(-k(x - x0)))
 
@@ -606,8 +607,10 @@ apply_button_clicked (GtkButton *button,
               gdouble variance = 0.0;
               gdouble std_dev;
 
+
+
               // Calculate mean
-              for (i = 0; i < dialog->pressure_samples->len; i++)
+              for (guint i = 0; i < dialog->pressure_samples->len; i++)
                 {
                   gdouble p = g_array_index (dialog->pressure_samples, gdouble, i);
                   mean_pressure += p;
@@ -615,7 +618,7 @@ apply_button_clicked (GtkButton *button,
               mean_pressure /= dialog->pressure_samples->len;
 
               // Calculate standard deviation
-              for (i = 0; i < dialog->pressure_samples->len; i++)
+              for (guint i = 0; i < dialog->pressure_samples->len; i++)
                 {
                   gdouble p = g_array_index (dialog->pressure_samples, gdouble, i);
                   gdouble diff = p - mean_pressure;
@@ -623,6 +626,28 @@ apply_button_clicked (GtkButton *button,
                 }
               variance /= dialog->pressure_samples->len;
               std_dev = sqrt (variance);
+
+              // Removal of outliers
+              // SD STUFF
+
+              GArray *removed_indices = g_array_new(FALSE, FALSE, sizeof(guint));
+
+              for (guint i = 0; i < dialog->pressure_samples->len; i++)
+              {
+                  gdouble p = g_array_index(dialog->pressure_samples, gdouble, i);
+                  if (fabs(p - mean_pressure) <= 3.0 * std_dev)
+                      g_array_append_val(removed_indices, i);
+              }
+
+              if (dialog->pressure_samples->len - removed_indices->len >= 5)
+              {
+                for (guint i = 0; i < removed_indices->len; i++)
+                {
+                  guint index = g_array_index(removed_indices, guint, i);
+                  g_array_remove_index(dialog->pressure_samples, index);
+                }
+              }
+
 
               // Calculate median and quartiles from sorted pressures
               guint n = sorted_pressures->len;
@@ -635,6 +660,10 @@ apply_button_clicked (GtkButton *button,
                 {
                   median_pressure = g_array_index (sorted_pressures, gdouble, n/2);
                 }
+
+
+
+
 
               // Calculate quartiles
               guint q1_idx = n / 4;
@@ -665,11 +694,37 @@ apply_button_clicked (GtkButton *button,
               g_print ("  Fitted logistic: k=%.2f, x0=%.3f (median=%.3f, spread=%.3f)\n",
                       k, x0, median_pressure, spread_measure);
 
+
+              //PSEUDOCODE
+              /*
+              remove outliers 3xsd
+              mean
+              sd
+
+              filtered ar
+              for each val x in data
+                if abs(x-mean) <= 3 * sd
+                  append x in filtered
+
+
+
+              ------
+
+              implement moving average
+
+
+              */
+
+
+
+
               // Create curve points using fitted logistic function
               // Map input pressure [0, 1] to output pressure [0, 1] with S-shape
-              for (guint i = 0; i <= 20; i++)
+
+              guint n_points = 5;
+              for (guint i = 0; i <= n_points; i++)
                 {
-                  gdouble x = i / 20.0;  // Input pressure from 0.0 to 1.0
+                  gdouble x = i / (gdouble) n_points;  // Input pressure from 0.0 to 1.0
 
                   // Logistic function: f(x) = 1 / (1 + e^(-k(x - x0)))
                   gdouble exp_term = -k * (x - x0);
