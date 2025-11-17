@@ -38,13 +38,10 @@ struct _StylusEditor
 {
   GimpEditor parent_instance;
 
-  GtkAdjustment *slider_adjustment;
-  GtkWidget     *slider_scale;
-  GtkWidget     *natural_curve_button;
+  GtkWidget     *reset_curve_button;
   GtkWidget     *calibrate_button;
   GtkWidget     *pressure_label;
   GtkWidget     *curve_view;
-  GtkWidget     *preset_combo;
   GtkWidget     *reset_all_button;
   GtkWidget     *toggle_curve_button;
   GtkWidget     *curve_state_label;

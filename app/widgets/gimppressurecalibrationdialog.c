@@ -107,7 +107,6 @@ gimp_pressure_calibration_dialog_init (GimpPressureCalibrationDialog *dialog)
   dialog->target_device = NULL;
   dialog->recording = FALSE;
   dialog->pressure_samples = g_array_new (FALSE, FALSE, sizeof (gdouble));
-  dialog->velocity_samples = g_array_new (FALSE, FALSE, sizeof (gdouble));
   dialog->last_event_time = 0;
   dialog->surface = NULL;
   dialog->last_x = 0.0;
@@ -198,12 +197,6 @@ gimp_pressure_calibration_dialog_finalize (GObject *object)
       dialog->pressure_samples = NULL;
     }
 
-  if (dialog->velocity_samples)
-    {
-      g_array_free (dialog->velocity_samples, TRUE);
-      dialog->velocity_samples = NULL;
-    }
-
   if (dialog->surface)
     {
       cairo_surface_destroy (dialog->surface);
@@ -263,16 +256,8 @@ drawing_area_button_press (GtkWidget                     *widget,
             {
               dialog->target_device =
                 gimp_device_manager_get_current_device (device_manager);
-
-              if (dialog->target_device)
-                {
-                  g_print ("Calibration will target device: %s\n",
-                           gimp_object_get_name (dialog->target_device));
-                }
             }
         }
-
-      g_print ("\n=== VELOCITY TRACKING STARTED ===\n");
 
       gtk_label_set_text (GTK_LABEL (dialog->status_label),
                           _("Recording... Draw multiple strokes."));
@@ -304,33 +289,6 @@ drawing_area_button_release (GtkWidget                     *widget,
       gtk_label_set_text (GTK_LABEL (dialog->status_label), text);
       g_free (text);
 
-      if (dialog->velocity_samples->len > 0)
-        {
-          gdouble min_velocity = G_MAXDOUBLE;
-          gdouble max_velocity = 0.0;
-          gdouble avg_velocity = 0.0;
-          guint   i;
-
-          for (i = 0; i < dialog->velocity_samples->len; i++)
-            {
-              gdouble v = g_array_index (dialog->velocity_samples, gdouble, i);
-
-              avg_velocity += v;
-              if (v < min_velocity)
-                min_velocity = v;
-              if (v > max_velocity)
-                max_velocity = v;
-            }
-          avg_velocity /= dialog->velocity_samples->len;
-
-          g_print ("\n=== STROKE COMPLETE - CUMULATIVE STATS ===\n");
-          g_print ("Total velocity samples: %d\n", dialog->velocity_samples->len);
-          g_print ("Min velocity: %.2f px/s\n", min_velocity);
-          g_print ("Max velocity: %.2f px/s\n", max_velocity);
-          g_print ("Avg velocity: %.2f px/s\n", avg_velocity);
-          g_print ("==========================================\n\n");
-        }
-
       gtk_widget_set_sensitive (dialog->apply_button, TRUE);
     }
 
@@ -348,7 +306,6 @@ drawing_area_motion_notify (GtkWidget                     *widget,
   guint32        current_time;
   gdouble        time_delta;
   gdouble        distance;
-  gdouble        velocity;
   gdouble        dx;
   gdouble        dy;
 
@@ -372,16 +329,6 @@ drawing_area_motion_notify (GtkWidget                     *widget,
       dy = event->y - dialog->last_y;
       distance = sqrt (dx * dx + dy * dy);
 
-      if (time_delta > 0.0)
-        {
-          velocity = distance / time_delta;
-
-          g_array_append_val (dialog->velocity_samples, velocity);
-
-          g_print ("Time Delta: %.4f sec | Distance: %.2f px | "
-                   "Velocity: %.2f px/s | Pressure: %.3f\n",
-                   time_delta, distance, velocity, pressure);
-        }
     }
 
   dialog->last_event_time = current_time;
@@ -423,9 +370,6 @@ apply_all_checkbox_toggled (GtkToggleButton               *toggle,
                              GimpPressureCalibrationDialog *dialog)
 {
   dialog->apply_to_all_brushes = gtk_toggle_button_get_active (toggle);
-
-  g_print ("Apply to only selected brush: %s\n",
-          dialog->apply_to_all_brushes ? "YES" : "NO");
 }
 
 static void
@@ -435,9 +379,6 @@ clear_button_clicked (GtkButton                     *button,
   cairo_t *cr;
 
   g_array_set_size (dialog->pressure_samples, 0);
-  g_array_set_size (dialog->velocity_samples, 0);
-
-  g_print ("\n=== DATA CLEARED ===\n");
 
   if (dialog->surface)
     {
@@ -485,11 +426,6 @@ apply_button_clicked (GtkButton                     *button,
   gdouble            variance;
   guint              i;
   gchar              *text;
-  gdouble            exponent;
-  gdouble            min_velocity;
-  gdouble            max_velocity;
-  gdouble            avg_velocity;
-  gdouble            velocity_strength;
   gint               p_len;
   gint               v_len;
   GArray             *sorted_pressures;
@@ -526,50 +462,7 @@ apply_button_clicked (GtkButton                     *button,
 
       g_array_sort (sorted_pressures, (GCompareFunc) compare_double);
 
-  min_velocity = G_MAXDOUBLE;
-  max_velocity = 0.0;
-  avg_velocity = 0.0;
-
-
-
-  if (dialog->velocity_samples->len > 0)
-    {
-      for (i = 0; i < dialog->velocity_samples->len; i++)
-        {
-          gdouble v = g_array_index (dialog->velocity_samples, gdouble, i);
-
-          if (v < min_velocity)
-            min_velocity = v;
-          if (v > max_velocity)
-            max_velocity = v;
-          avg_velocity += v;
-        }
-      avg_velocity /= dialog->velocity_samples->len;
-    }
-  else
-    {
-      min_velocity = 0.0;
-      max_velocity = 1000.0;
-      avg_velocity = 500.0;
-    }
-
-  exponent = stylus_editor_get_power (dialog->context->gimp);
-
-  if (dialog->velocity_samples->len > 0 && max_velocity > min_velocity)
-    {
-      gdouble normalized_avg_vel;
-
-      normalized_avg_vel = ((avg_velocity - min_velocity) /
-                            (max_velocity - min_velocity));
-      velocity_strength = 1.0 - (normalized_avg_vel * 0.2);
-    }
-  else
-    {
-      velocity_strength = 1.0;
-    }
-
     p_len = dialog->pressure_samples->len;
-    v_len = dialog->velocity_samples->len;
 
   if (dialog->context)
     {
@@ -588,13 +481,8 @@ apply_button_clicked (GtkButton                     *button,
                                                            GDK_AXIS_PRESSURE);
               if (!pressure_curve)
                 {
-                  g_print ("  Skipping '%s' (no pressure curve)\n",
-                           gimp_object_get_name (device_info));
                   continue;
                 }
-
-              g_print ("  Applying calibration to device: %s\n",
-                       gimp_object_get_name (device_info));
 
               gimp_curve_set_curve_type (pressure_curve, GIMP_CURVE_SMOOTH);
 
@@ -679,16 +567,9 @@ apply_button_clicked (GtkButton                     *button,
 
                   gimp_curve_add_point (pressure_curve, x, y);
                 }
-
-              g_print ("    Created curve via vertices: y = (x^%.2f) × %.3f "
-                       "(smooth)\n",
-                       exponent, velocity_strength);
             }
         }
     }
-
-  g_print ("Calibration applied to all devices!\n");
-  g_print ("=========================================\n\n");
 
   if (dialog->context && device_info)
     {
@@ -713,10 +594,6 @@ apply_button_clicked (GtkButton                     *button,
               GimpContainer *container;
               GList         *list;
 
-              g_print ("\nCustom curves are DISABLED - "
-                       "reverting all devices to linear\n");
-              g_print ("(New calibration stored and visible in graph)\n");
-
               container = GIMP_CONTAINER (device_manager);
               for (list = GIMP_LIST (container)->queue->head; list;
                    list = g_list_next (list))
@@ -736,27 +613,9 @@ apply_button_clicked (GtkButton                     *button,
   if (dialog->context)
     {
       gimp_devices_save (dialog->context->gimp, TRUE);
-      g_print ("Device configurations saved to devicerc\n");
     }
-
-  if (velocity_strength < 0.99)
-    {
-      text = g_strdup_printf (_("Calibration applied!\n"
-                                "Power=%.2f, Velocity scaling=%.2f "
-                                "(faster→thinner)"),
-                              exponent, velocity_strength);
-    }
-  else
-    {
-      text = g_strdup_printf (_("Calibration applied!\n"
-                                "Power=%.2f (no velocity adjustment)"),
-                              exponent);
-    }
-  gtk_label_set_text (GTK_LABEL (dialog->status_label), text);
-  g_free (text);
 
   g_array_set_size (dialog->pressure_samples, 0);
-  g_array_set_size (dialog->velocity_samples, 0);
   dialog->recording = FALSE;
 
   g_signal_emit (dialog, dialog_signals[CURVE_APPLIED], 0);
