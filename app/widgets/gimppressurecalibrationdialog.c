@@ -626,8 +626,38 @@ apply_button_clicked (GtkButton                     *button,
                                                   GDK_AXIS_PRESSURE);
       if (applied_curve)
         {
+          /* Store the curve even if custom curves are disabled,
+           * so it's ready when they're re-enabled */
           stylus_editor_store_curve (dialog->context->gimp, applied_curve,
                                      !dialog->apply_to_all_brushes);
+
+          /* Update display curve to show the new calibration */
+          stylus_editor_update_display_curve (dialog->context->gimp,
+                                              applied_curve);
+
+          /* If custom curves are disabled, immediately reset to linear */
+          if (!stylus_editor_are_custom_curves_enabled ())
+            {
+              GimpContainer *container;
+              GList         *list;
+
+              g_print ("\nCustom curves are DISABLED - "
+                       "reverting all devices to linear\n");
+              g_print ("(New calibration stored and visible in graph)\n");
+
+              container = GIMP_CONTAINER (device_manager);
+              for (list = GIMP_LIST (container)->queue->head; list;
+                   list = g_list_next (list))
+                {
+                  GimpDeviceInfo *dev;
+                  GimpCurve      *curve;
+
+                  dev = GIMP_DEVICE_INFO (list->data);
+                  curve = gimp_device_info_get_curve (dev, GDK_AXIS_PRESSURE);
+                  if (curve)
+                    gimp_curve_reset (curve, FALSE);
+                }
+            }
         }
     }
 

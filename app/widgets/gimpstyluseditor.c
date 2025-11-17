@@ -36,6 +36,9 @@ static gdouble current_power_setting = 1.0;
 /* Module-level reference to the stylus editor instance (for per-brush curves) */
 static StylusEditor *global_stylus_editor = NULL;
 
+/* Global toggle for enabling/disabling custom curves */
+static gboolean custom_curves_enabled = TRUE;
+
 static void      stylus_editor_constructed               (GObject     *object);
 static void      stylus_editor_dispose                   (GObject     *object);
 static void      stylus_editor_slider_changed            (GtkAdjustment *adjustment,
@@ -47,6 +50,8 @@ static void      stylus_editor_natural_curve_clicked     (GtkButton   *button,
 static void      stylus_editor_reset_all_curves_clicked  (GtkButton   *button,
                                                           StylusEditor *editor);
 static void      stylus_editor_calibrate_clicked         (GtkButton   *button,
+                                                          StylusEditor *editor);
+static void      stylus_editor_toggle_curve_clicked      (GtkButton   *button,
                                                           StylusEditor *editor);
 static gboolean  stylus_editor_update_pressure           (gpointer     data);
 static void      stylus_editor_brush_changed             (GimpContext *context,
@@ -104,6 +109,8 @@ stylus_editor_init (StylusEditor *editor)
   editor->pressure_label = NULL;
   editor->curve_view = NULL;
   editor->preset_combo = NULL;
+  editor->toggle_curve_button = NULL;
+  editor->curve_state_label = NULL;
   editor->context = NULL;
   editor->last_active_device = NULL;
   editor->curve_view_device = NULL;
@@ -114,6 +121,7 @@ stylus_editor_init (StylusEditor *editor)
                                                  g_object_unref);
   editor->current_brush = NULL;
   editor->global_default_curve = NULL;
+  editor->display_curve = NULL;
 }
 
 static void
@@ -137,6 +145,12 @@ stylus_editor_dispose (GObject *object)
     {
       g_object_unref (editor->global_default_curve);
       editor->global_default_curve = NULL;
+    }
+
+  if (editor->display_curve)
+    {
+      g_object_unref (editor->display_curve);
+      editor->display_curve = NULL;
     }
 
   if (editor->curve_view_device)
@@ -232,7 +246,20 @@ stylus_editor_constructed (GObject *object)
   gtk_widget_show (editor->preset_combo);
 
   g_signal_connect (editor->preset_combo, "changed",
-                   G_CALLBACK (stylus_editor_preset_changed), editor);
+                    G_CALLBACK (stylus_editor_preset_changed), editor);
+
+  /* Add toggle for custom curves */
+  editor->curve_state_label = gtk_label_new (_("Custom Curves: Enabled"));
+  gtk_box_pack_start (GTK_BOX (box_in_frame), editor->curve_state_label,
+                      FALSE, FALSE, 0);
+  gtk_widget_show (editor->curve_state_label);
+
+  editor->toggle_curve_button = gtk_button_new_with_label (_("Toggle Custom Curve"));
+  gtk_box_pack_start (GTK_BOX (box_in_frame), editor->toggle_curve_button,
+                      FALSE, FALSE, 0);
+  gtk_widget_show (editor->toggle_curve_button);
+  g_signal_connect (editor->toggle_curve_button, "clicked",
+                    G_CALLBACK (stylus_editor_toggle_curve_clicked), editor);
 
   reset_button_box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
   gtk_box_pack_start (GTK_BOX (box_in_frame), reset_button_box, FALSE, FALSE, 0);
@@ -471,6 +498,123 @@ stylus_editor_calibrate_clicked (GtkButton    *button,
   gtk_dialog_run (GTK_DIALOG (dialog));
 }
 
+static void
+stylus_editor_toggle_curve_clicked (GtkButton    *button,
+                                     StylusEditor *editor)
+{
+  GimpDeviceManager *device_manager;
+  GimpDeviceInfo    *device_info;
+  GimpCurve         *pressure_curve;
+
+  /* Toggle the global state */
+  custom_curves_enabled = !custom_curves_enabled;
+
+  /* Update the label */
+  if (custom_curves_enabled)
+    {
+      gtk_label_set_text (GTK_LABEL (editor->curve_state_label),
+                          _("Custom Curves: Enabled"));
+      g_print ("\n=== Custom Curves ENABLED ===\n");
+    }
+  else
+    {
+      gtk_label_set_text (GTK_LABEL (editor->curve_state_label),
+                          _("Custom Curves: Disabled"));
+      g_print ("\n=== Custom Curves DISABLED ===\n");
+    }
+
+  if (!editor->context)
+    return;
+
+  device_manager = gimp_devices_get_manager (editor->context->gimp);
+  if (!device_manager)
+    return;
+
+  device_info = gimp_device_manager_get_current_device (device_manager);
+  if (!device_info)
+    return;
+
+  pressure_curve = gimp_device_info_get_curve (device_info,
+                                               GDK_AXIS_PRESSURE);
+  if (!pressure_curve)
+    return;
+
+  /* Apply the current state to actual device curve (affects drawing) */
+  if (!custom_curves_enabled)
+    {
+      /* Disable: Set device curve to linear (but keep display curve) */
+      g_print ("  Setting device curve to linear (display unchanged)\n");
+      
+      /* Save current curve for display before resetting */
+      if (editor->display_curve)
+        g_object_unref (editor->display_curve);
+      editor->display_curve = GIMP_CURVE (gimp_config_duplicate (GIMP_CONFIG (pressure_curve)));
+      
+      /* Reset actual device curve to linear */
+      gimp_curve_reset (pressure_curve, FALSE);
+    }
+  else
+    {
+      /* Enable: Restore the appropriate curve to device */
+      if (editor->current_brush)
+        {
+          const gchar *brush_name;
+          GimpCurve   *stored_curve;
+
+          brush_name = gimp_object_get_name (GIMP_OBJECT (editor->current_brush));
+          stored_curve = g_hash_table_lookup (editor->brush_curves,
+                                               brush_name);
+
+          if (stored_curve)
+            {
+              g_print ("  Restoring stored curve for brush '%s'\n",
+                       brush_name);
+              gimp_config_copy (GIMP_CONFIG (stored_curve),
+                                GIMP_CONFIG (pressure_curve),
+                                GIMP_CONFIG_PARAM_SERIALIZE);
+            }
+          else if (editor->global_default_curve)
+            {
+              g_print ("  Restoring global default curve\n");
+              gimp_config_copy (GIMP_CONFIG (editor->global_default_curve),
+                                GIMP_CONFIG (pressure_curve),
+                                GIMP_CONFIG_PARAM_SERIALIZE);
+            }
+          else
+            {
+              g_print ("  No custom curve to restore, using linear\n");
+              gimp_curve_reset (pressure_curve, FALSE);
+            }
+        }
+      else if (editor->global_default_curve)
+        {
+          g_print ("  Restoring global default curve\n");
+          gimp_config_copy (GIMP_CONFIG (editor->global_default_curve),
+                            GIMP_CONFIG (pressure_curve),
+                            GIMP_CONFIG_PARAM_SERIALIZE);
+        }
+      else
+        {
+          g_print ("  No custom curve to restore, using linear\n");
+          gimp_curve_reset (pressure_curve, FALSE);
+        }
+      
+      /* Update display curve to match */
+      if (editor->display_curve)
+        g_object_unref (editor->display_curve);
+      editor->display_curve = GIMP_CURVE (gimp_config_duplicate (GIMP_CONFIG (pressure_curve)));
+    }
+
+  /* Update the curve view to show display curve */
+  if (editor->curve_view && editor->display_curve)
+    {
+      gimp_curve_view_set_curve (GIMP_CURVE_VIEW (editor->curve_view),
+                                 editor->display_curve, NULL);
+    }
+
+  g_print ("================================\n\n");
+}
+
 static gboolean
 stylus_editor_block_events (GtkWidget *widget,
                              GdkEvent  *event,
@@ -661,6 +805,14 @@ stylus_editor_new (GimpContext     *context,
               stored_curve = g_hash_table_lookup (editor->brush_curves,
                                                    brush_name);
 
+              /* Only apply custom curve if enabled */
+              if (!custom_curves_enabled)
+                {
+                  g_print ("Custom curves DISABLED - using linear curve\n");
+                  /* Don't apply any custom curve */
+                  stored_curve = NULL;
+                }
+
               if (stored_curve)
                 {
                   g_print ("Applying stored curve for initial brush '%s'\n",
@@ -680,10 +832,33 @@ stylus_editor_new (GimpContext     *context,
                                                        GDK_AXIS_PRESSURE);
           if (pressure_curve)
             {
-              gimp_curve_view_set_curve (GIMP_CURVE_VIEW (editor->curve_view),
-                                         pressure_curve, NULL);
+              /* Store curve for display */
+              if (stored_curve)
+                {
+                  if (editor->display_curve)
+                    g_object_unref (editor->display_curve);
+                  editor->display_curve = GIMP_CURVE (gimp_config_duplicate (GIMP_CONFIG (stored_curve)));
+                }
+              else
+                {
+                  if (editor->display_curve)
+                    g_object_unref (editor->display_curve);
+                  editor->display_curve = GIMP_CURVE (gimp_config_duplicate (GIMP_CONFIG (pressure_curve)));
+                }
 
-              g_signal_connect (pressure_curve, "dirty",
+              /* If custom curves are disabled, set device to linear */
+              if (!custom_curves_enabled)
+                {
+                  g_print ("Custom curves DISABLED - setting device to linear\n");
+                  gimp_curve_reset (pressure_curve, FALSE);
+                }
+
+              /* Always show the display curve (custom curve) in view */
+              gimp_curve_view_set_curve (GIMP_CURVE_VIEW (editor->curve_view),
+                                         editor->display_curve, NULL);
+
+              /* Connect dirty signal to display curve (what user edits) */
+              g_signal_connect (editor->display_curve, "dirty",
                                 G_CALLBACK (stylus_editor_curve_dirty),
                                 editor);
 
@@ -702,10 +877,41 @@ static void
 stylus_editor_curve_dirty (GimpCurve    *curve,
                             StylusEditor *editor)
 {
+  GimpDeviceManager *device_manager;
+  GimpDeviceInfo    *device_info;
+  GimpCurve         *device_curve;
+
   if (!editor->context)
     return;
 
   g_print ("\n=== Curve manually edited, saving for current brush ===\n");
+
+  /* This is called when display_curve is edited */
+  /* If custom curves are enabled, apply to device curve immediately */
+  if (custom_curves_enabled)
+    {
+      device_manager = gimp_devices_get_manager (editor->context->gimp);
+      if (device_manager)
+        {
+          device_info = gimp_device_manager_get_current_device (device_manager);
+          if (device_info)
+            {
+              device_curve = gimp_device_info_get_curve (device_info,
+                                                         GDK_AXIS_PRESSURE);
+              if (device_curve)
+                {
+                  g_print ("  Applying edited curve to device\n");
+                  gimp_config_copy (GIMP_CONFIG (curve),
+                                    GIMP_CONFIG (device_curve),
+                                    GIMP_CONFIG_PARAM_SERIALIZE);
+                }
+            }
+        }
+    }
+  else
+    {
+      g_print ("  Custom curves DISABLED - curve saved but not applied\n");
+    }
 
   stylus_editor_store_curve (editor->context->gimp, curve, FALSE);
   gimp_devices_save (editor->context->gimp, TRUE);
@@ -757,25 +963,40 @@ stylus_editor_brush_changed (GimpContext  *context,
       return;
     }
 
-  if (editor->curve_view_device)
+  /* Disconnect old display curve signal */
+  if (editor->display_curve)
     {
-      GimpCurve *old_curve;
-
-      old_curve = gimp_device_info_get_curve (editor->curve_view_device,
-                                              GDK_AXIS_PRESSURE);
-      if (old_curve)
-        {
-          g_signal_handlers_disconnect_by_func (old_curve,
-                                                stylus_editor_curve_dirty,
-                                                editor);
-        }
+      g_signal_handlers_disconnect_by_func (editor->display_curve,
+                                            stylus_editor_curve_dirty,
+                                            editor);
     }
 
   stored_curve = g_hash_table_lookup (editor->brush_curves, brush_name);
   g_print ("  Stored curve lookup result: %p\n",
            (void *) stored_curve);
 
+  /* Update display curve */
   if (stored_curve)
+    {
+      if (editor->display_curve)
+        g_object_unref (editor->display_curve);
+      editor->display_curve = GIMP_CURVE (gimp_config_duplicate (GIMP_CONFIG (stored_curve)));
+    }
+
+  /* Check if custom curves are enabled */
+  if (!custom_curves_enabled)
+    {
+      g_print ("  Custom curves DISABLED - applying linear curve to device\n");
+      gimp_curve_reset (device_curve, FALSE);
+      
+      /* But keep showing custom curve in view */
+      if (editor->curve_view && editor->display_curve)
+        {
+          gimp_curve_view_set_curve (GIMP_CURVE_VIEW (editor->curve_view),
+                                     editor->display_curve, NULL);
+        }
+    }
+  else if (stored_curve)
     {
       g_print ("  Found stored curve for brush '%s', applying it\n",
                brush_name);
@@ -802,15 +1023,35 @@ stylus_editor_brush_changed (GimpContext  *context,
         }
     }
 
-  if (editor->curve_view)
+  /* Update display curve if not disabled */
+  if (custom_curves_enabled && editor->display_curve)
     {
-      gimp_curve_view_set_curve (GIMP_CURVE_VIEW (editor->curve_view),
-                                 device_curve, NULL);
+      g_object_unref (editor->display_curve);
+      editor->display_curve = GIMP_CURVE (gimp_config_duplicate (GIMP_CONFIG (device_curve)));
     }
 
-  g_signal_connect (device_curve, "dirty",
-                    G_CALLBACK (stylus_editor_curve_dirty),
-                    editor);
+  /* Disconnect old display curve signal if exists */
+  if (editor->display_curve)
+    {
+      g_signal_handlers_disconnect_by_func (editor->display_curve,
+                                            stylus_editor_curve_dirty,
+                                            editor);
+    }
+
+  /* Always show display curve in view */
+  if (editor->curve_view && editor->display_curve)
+    {
+      gimp_curve_view_set_curve (GIMP_CURVE_VIEW (editor->curve_view),
+                                 editor->display_curve, NULL);
+    }
+
+  /* Connect dirty signal to display curve (what user edits) */
+  if (editor->display_curve)
+    {
+      g_signal_connect (editor->display_curve, "dirty",
+                        G_CALLBACK (stylus_editor_curve_dirty),
+                        editor);
+    }
 
   editor->current_brush = brush;
   editor->curve_view_device = device_info;
@@ -892,6 +1133,73 @@ stylus_editor_get_current_brush_name (Gimp *gimp)
     return NULL;
 
   return gimp_object_get_name (GIMP_OBJECT (global_stylus_editor->current_brush));
+}
+
+gboolean
+stylus_editor_are_custom_curves_enabled (void)
+{
+  return custom_curves_enabled;
+}
+
+void
+stylus_editor_update_display_curve (Gimp      *gimp,
+                                    GimpCurve *curve)
+{
+  GimpDeviceManager *device_manager;
+  GimpDeviceInfo    *device_info;
+  GimpCurve         *device_curve;
+
+  if (!global_stylus_editor)
+    return;
+
+  /* Disconnect old signal handler */
+  if (global_stylus_editor->display_curve)
+    {
+      g_signal_handlers_disconnect_by_func (global_stylus_editor->display_curve,
+                                            stylus_editor_curve_dirty,
+                                            global_stylus_editor);
+      g_object_unref (global_stylus_editor->display_curve);
+    }
+
+  /* Update the display curve with the new calibration */
+  global_stylus_editor->display_curve =
+    GIMP_CURVE (gimp_config_duplicate (GIMP_CONFIG (curve)));
+
+  /* If custom curves are enabled, also update the device curve */
+  if (custom_curves_enabled && global_stylus_editor->context)
+    {
+      device_manager = gimp_devices_get_manager (global_stylus_editor->context->gimp);
+      if (device_manager)
+        {
+          device_info = gimp_device_manager_get_current_device (device_manager);
+          if (device_info)
+            {
+              device_curve = gimp_device_info_get_curve (device_info,
+                                                         GDK_AXIS_PRESSURE);
+              if (device_curve)
+                {
+                  g_print ("Custom curves ENABLED - applying to device immediately\n");
+                  gimp_config_copy (GIMP_CONFIG (curve),
+                                    GIMP_CONFIG (device_curve),
+                                    GIMP_CONFIG_PARAM_SERIALIZE);
+                }
+            }
+        }
+    }
+
+  /* Update the curve view to show the new curve */
+  if (global_stylus_editor->curve_view)
+    {
+      gimp_curve_view_set_curve (GIMP_CURVE_VIEW (global_stylus_editor->curve_view),
+                                 global_stylus_editor->display_curve, NULL);
+    }
+
+  /* Connect dirty signal to new display curve */
+  g_signal_connect (global_stylus_editor->display_curve, "dirty",
+                    G_CALLBACK (stylus_editor_curve_dirty),
+                    global_stylus_editor);
+
+  g_print ("Display curve updated with new calibration\n");
 }
 
 static void

@@ -27,12 +27,15 @@ struct _StylusEditor
   GtkWidget     *curve_view;
   GtkWidget     *preset_combo;
   GtkWidget     *reset_all_button;
+  GtkWidget     *toggle_curve_button;
+  GtkWidget     *curve_state_label;
   GimpContext   *context;
   GimpDeviceInfo *last_active_device;
   GimpDeviceInfo *curve_view_device;
   GHashTable     *brush_curves;
   GimpBrush      *current_brush;
   GimpCurve      *global_default_curve;
+  GimpCurve      *display_curve;  /* Curve shown in view (unchanged by toggle) */
 };
 
 struct _StylusEditorClass
@@ -55,6 +58,11 @@ void           stylus_editor_store_curve             (Gimp            *gimp,
                                                       gboolean         apply_to_all);
 
 const gchar  * stylus_editor_get_current_brush_name  (Gimp            *gimp);
+
+gboolean       stylus_editor_are_custom_curves_enabled (void);
+
+void           stylus_editor_update_display_curve    (Gimp            *gimp,
+                                                      GimpCurve       *curve);
 
 G_END_DECLS
 
