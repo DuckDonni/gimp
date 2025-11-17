@@ -1,4 +1,23 @@
-#include "config.h"
+/* GIMP - The GNU Image Manipulation Program
+ * Copyright (C) 1995 Spencer Kimball and Peter Mattis
+ *
+ * gimpstyluseditor.c
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+ #include "config.h"
 
 #include <gegl.h>
 #include <gtk/gtk.h>
@@ -281,7 +300,7 @@ stylus_editor_constructed (GObject *object)
 
   editor->calibrate_button =
     gtk_button_new_with_label (_("Calibrate Pressure..."));
-  
+
   gtk_box_pack_start (GTK_BOX (box_in_frame), editor->calibrate_button,
                       FALSE, FALSE, 0);
   gtk_widget_show (editor->calibrate_button);
@@ -306,11 +325,11 @@ stylus_editor_constructed (GObject *object)
                     G_CALLBACK (stylus_editor_block_events), NULL);
   g_signal_connect (editor->curve_view, "scroll-event",
                     G_CALLBACK (stylus_editor_block_events), NULL);
-  
+
   /* Connect custom draw handler for centered white axis labels */
   g_signal_connect_after (editor->curve_view, "draw",
                           G_CALLBACK (stylus_editor_curve_draw), editor);
-  
+
   gtk_box_pack_start (GTK_BOX (box_in_frame), editor->curve_view,
                       FALSE, FALSE, 0);
   gtk_widget_show (editor->curve_view);
@@ -358,14 +377,14 @@ stylus_editor_natural_curve_clicked (GtkButton    *button,
       g_print ("No context available.\n");
       return;
     }
-  
+
   device_manager = gimp_devices_get_manager (editor->context->gimp);
   if (!device_manager)
     {
       g_print ("No device manager available.\n");
       return;
     }
-  
+
   device_info = gimp_device_manager_get_current_device (device_manager);
   if (!device_info)
     {
@@ -379,7 +398,7 @@ stylus_editor_natural_curve_clicked (GtkButton    *button,
       g_print ("No pressure curve available.\n");
       return;
     }
-  
+
   if (editor->current_brush)
     {
       brush_name = gimp_object_get_name (GIMP_OBJECT (editor->current_brush));
@@ -397,13 +416,13 @@ stylus_editor_natural_curve_clicked (GtkButton    *button,
   g_print ("  Resetting device: %s\n",
            gimp_object_get_name (device_info));
   gimp_curve_reset (pressure_curve, FALSE);
-  
+
   g_print ("Pressure curve reset to linear (x1.0)\n");
   g_print ("==========================================\n\n");
 
   stylus_editor_save_brush_curves (editor);
   gimp_devices_save (editor->context->gimp, TRUE);
-  
+
   g_signal_emit (editor, stylus_editor_signals[NATURAL_CURVE_REQUESTED], 0);
 }
 
@@ -420,7 +439,7 @@ stylus_editor_reset_all_curves_clicked (GtkButton    *button,
       g_print ("No context available.\n");
       return;
     }
-  
+
   device_manager = gimp_devices_get_manager (editor->context->gimp);
   if (!device_manager)
     {
@@ -471,7 +490,7 @@ stylus_editor_reset_all_curves_clicked (GtkButton    *button,
 
   stylus_editor_save_brush_curves (editor);
   gimp_devices_save (editor->context->gimp, TRUE);
-  
+
   g_signal_emit (editor, stylus_editor_signals[NATURAL_CURVE_REQUESTED], 0);
 }
 
@@ -544,12 +563,12 @@ stylus_editor_toggle_curve_clicked (GtkButton    *button,
     {
       /* Disable: Set device curve to linear (but keep display curve) */
       g_print ("  Setting device curve to linear (display unchanged)\n");
-      
+
       /* Save current curve for display before resetting */
       if (editor->display_curve)
         g_object_unref (editor->display_curve);
       editor->display_curve = GIMP_CURVE (gimp_config_duplicate (GIMP_CONFIG (pressure_curve)));
-      
+
       /* Reset actual device curve to linear */
       gimp_curve_reset (pressure_curve, FALSE);
     }
@@ -598,7 +617,7 @@ stylus_editor_toggle_curve_clicked (GtkButton    *button,
           g_print ("  No custom curve to restore, using linear\n");
           gimp_curve_reset (pressure_curve, FALSE);
         }
-      
+
       /* Update display curve to match */
       if (editor->display_curve)
         g_object_unref (editor->display_curve);
@@ -988,7 +1007,7 @@ stylus_editor_brush_changed (GimpContext  *context,
     {
       g_print ("  Custom curves DISABLED - applying linear curve to device\n");
       gimp_curve_reset (device_curve, FALSE);
-      
+
       /* But keep showing custom curve in view */
       if (editor->curve_view && editor->display_curve)
         {
@@ -1335,7 +1354,7 @@ stylus_editor_load_brush_curves (StylusEditor *editor)
         {
           gchar *brush_name = NULL;
           GimpCurve *curve;
-          
+
           /* Read brush name */
           token = g_scanner_get_next_token (scanner);
           if (token == G_TOKEN_STRING)
@@ -1347,7 +1366,7 @@ stylus_editor_load_brush_curves (StylusEditor *editor)
             {
               g_print ("  ERROR: Expected string token, got %d\n", token);
             }
-          
+
           if (brush_name)
             {
               curve = GIMP_CURVE (gimp_curve_new ("brush curve"));
@@ -1433,7 +1452,7 @@ stylus_editor_load_brush_curves (StylusEditor *editor)
 
                       token = g_scanner_get_next_token (scanner);
                       g_print ("  After deserialize, consumed token: %d\n", token);
-                      
+
                       token = g_scanner_get_next_token (scanner);
                       g_print ("  Consumed closing paren of global-default-curve: %d\n", token);
                     }
@@ -1457,15 +1476,15 @@ stylus_editor_load_brush_curves (StylusEditor *editor)
         {
           g_print ("  Unknown symbol in file, skipping...\n");
         }
-      
+
       g_print ("  ===== End of iteration, peeking next token =====\n");
       token = g_scanner_peek_next_token (scanner);
-      g_print ("  Next token = %d (G_TOKEN_LEFT_PAREN=%d, G_TOKEN_RIGHT_PAREN=%d, G_TOKEN_EOF=%d)\n", 
+      g_print ("  Next token = %d (G_TOKEN_LEFT_PAREN=%d, G_TOKEN_RIGHT_PAREN=%d, G_TOKEN_EOF=%d)\n",
               token, G_TOKEN_LEFT_PAREN, G_TOKEN_RIGHT_PAREN, G_TOKEN_EOF);
     }
-  
+
   g_print ("  Parse loop ended, next token = %d\n", g_scanner_peek_next_token (scanner));
-  
+
   gimp_scanner_unref (scanner);
 
   g_print ("Loaded %d brush curves from brushcurvesrc\n",
@@ -1476,7 +1495,7 @@ stylus_editor_load_brush_curves (StylusEditor *editor)
   if (g_hash_table_size (editor->brush_curves) > 0)
     {
       loaded_keys = g_hash_table_get_keys (editor->brush_curves);
-      
+
       g_print ("Loaded brushes in hash table:\n");
       for (loaded_iter = loaded_keys; loaded_iter; loaded_iter = loaded_iter->next)
         {
@@ -1486,6 +1505,6 @@ stylus_editor_load_brush_curves (StylusEditor *editor)
         }
       g_list_free (loaded_keys);
     }
-  
+
   g_print ("===========================\n\n");
 }
