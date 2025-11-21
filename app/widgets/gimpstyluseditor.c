@@ -17,7 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
- #include "config.h"
+#include "config.h"
 
 #include <gegl.h>
 #include <gtk/gtk.h>
@@ -401,25 +401,18 @@ stylus_editor_reset_all_curves_clicked (GtkButton    *button,
       editor->global_default_curve = NULL;
     }
 
-  {
-    GimpContainer *container = GIMP_CONTAINER (device_manager);
-    GList         *list;
 
-    for (list = GIMP_LIST (container)->queue->head; list;
-         list = g_list_next (list))
-      {
-        device_info = GIMP_DEVICE_INFO (list->data);
+  GimpContainer *container = GIMP_CONTAINER (device_manager);
+  GList         *list;
 
-        pressure_curve = gimp_device_info_get_curve (device_info,
-                                                     GDK_AXIS_PRESSURE);
-        if (!pressure_curve)
-          {
-            continue;
-          }
-
+  for (list = GIMP_LIST (container)->queue->head; list;
+       list = g_list_next (list))
+    {
+      device_info = GIMP_DEVICE_INFO (list->data);
+      pressure_curve = gimp_device_info_get_curve (device_info, GDK_AXIS_PRESSURE);
+      if (pressure_curve)
         gimp_curve_reset (pressure_curve, FALSE);
-      }
-  }
+    }
 
   /* Reset the display curve to linear and update the view for the current device */
   device_info = gimp_device_manager_get_current_device (device_manager);
@@ -697,8 +690,7 @@ stylus_editor_update_pressure (gpointer data)
     {
       gimp_device_info_get_device_coords (device_info, window, &coords);
 
-      text = g_strdup_printf (_("Pressure: %.3f"),
-                              coords.pressure);
+      text = g_strdup_printf (_("Pressure: %.3f"), coords.pressure);
       gtk_label_set_text (GTK_LABEL (editor->pressure_label), text);
       g_free (text);
     }
