@@ -53,7 +53,7 @@
 static StylusEditor *global_stylus_editor = NULL;
 
 /* Global toggle for enabling/disabling custom curves */
-static gboolean custom_curves_enabled = TRUE;
+static gboolean custom_curves_enabled = FALSE;
 
 static void      stylus_editor_constructed               (GObject     *object);
 static void      stylus_editor_dispose                   (GObject     *object);
@@ -73,6 +73,7 @@ static void      stylus_editor_curve_dirty               (GimpCurve   *curve,
                                                           StylusEditor *editor);
 static void      stylus_editor_save_brush_curves         (StylusEditor *editor);
 static void      stylus_editor_load_brush_curves         (StylusEditor *editor);
+static void      stylus_editor_update_widget_state       (StylusEditor *editor);
 static gboolean  stylus_editor_block_events              (GtkWidget   *widget,
                                                           GdkEvent    *event,
                                                           gpointer     user_data);
@@ -214,7 +215,7 @@ stylus_editor_constructed (GObject *object)
   gtk_widget_show (editor->pressure_label);
 
   /* Add toggle for custom curves */
-  editor->curve_state_label = gtk_label_new (_("Custom Curves: Enabled"));
+  editor->curve_state_label = gtk_label_new (_("Custom Curves: Disabled"));
   gtk_box_pack_start (GTK_BOX (box_in_frame), editor->curve_state_label,
                       FALSE, FALSE, 0);
   gtk_widget_show (editor->curve_state_label);
@@ -493,6 +494,31 @@ stylus_editor_calibrate_clicked (GtkButton    *button,
 }
 
 static void
+stylus_editor_update_widget_state (StylusEditor *editor)
+{
+  if (editor->reset_curve_button)
+    {
+      gtk_widget_set_sensitive (editor->reset_curve_button, custom_curves_enabled);
+      gtk_widget_set_opacity (editor->reset_curve_button, custom_curves_enabled ? 1.0 : 0.25);
+    }
+  if (editor->reset_all_button)
+    {
+      gtk_widget_set_sensitive (editor->reset_all_button, custom_curves_enabled);
+      gtk_widget_set_opacity (editor->reset_all_button, custom_curves_enabled ? 1.0 : 0.25);
+    }
+  if (editor->calibrate_button)
+    {
+      gtk_widget_set_sensitive (editor->calibrate_button, custom_curves_enabled);
+      gtk_widget_set_opacity (editor->calibrate_button, custom_curves_enabled ? 1.0 : 0.25);
+    }
+  if (editor->curve_view)
+    {
+      gtk_widget_set_sensitive (editor->curve_view, custom_curves_enabled);
+      gtk_widget_set_opacity (editor->curve_view, custom_curves_enabled ? 1.0 : 0.25);
+    }
+}
+
+static void
 stylus_editor_toggle_curve_clicked (GtkButton    *button,
                                      StylusEditor *editor)
 {
@@ -595,27 +621,10 @@ stylus_editor_toggle_curve_clicked (GtkButton    *button,
                                  editor->display_curve, NULL);
     }
 
-  if (editor->reset_curve_button)
-    {
-      gtk_widget_set_sensitive (editor->reset_curve_button, custom_curves_enabled);
-      gtk_widget_set_opacity (editor->reset_curve_button, custom_curves_enabled ? 1.0 : 0.25);
-    }
-  if (editor->reset_all_button)
-    {
-      gtk_widget_set_sensitive (editor->reset_all_button, custom_curves_enabled);
-      gtk_widget_set_opacity (editor->reset_all_button, custom_curves_enabled ? 1.0 : 0.25);
-    }
-  if (editor->calibrate_button)
-    {
-      gtk_widget_set_sensitive (editor->calibrate_button, custom_curves_enabled);
-      gtk_widget_set_opacity (editor->calibrate_button, custom_curves_enabled ? 1.0 : 0.25);
-    }
-  if (editor->curve_view)
-    {
-      gtk_widget_set_sensitive (editor->curve_view, custom_curves_enabled);
-      gtk_widget_set_opacity (editor->curve_view, custom_curves_enabled ? 1.0 : 0.25);
-    }
+  stylus_editor_update_widget_state (editor);
 
+  /* Save the toggle state to disk */
+  stylus_editor_save_brush_curves (editor);
 }
 
 static gboolean
@@ -790,6 +799,15 @@ stylus_editor_new (GimpContext     *context,
   editor->current_brush = gimp_context_get_brush (context);
 
   stylus_editor_load_brush_curves (editor);
+
+  /* Update the label to reflect the loaded state */
+  if (editor->curve_state_label)
+    {
+      gtk_label_set_text (GTK_LABEL (editor->curve_state_label),
+                          custom_curves_enabled ? _("Custom Curves: Enabled") : _("Custom Curves: Disabled"));
+    }
+
+  stylus_editor_update_widget_state (editor);
 
   device_manager = gimp_devices_get_manager (context->gimp);
   if (device_manager)
@@ -1162,6 +1180,11 @@ stylus_editor_save_brush_curves (StylusEditor *editor)
   if (!writer)
     return;
 
+  /* Save the custom curves enabled state */
+  gimp_config_writer_open (writer, "custom-curves-enabled");
+  gimp_config_writer_identifier (writer, custom_curves_enabled ? "yes" : "no");
+  gimp_config_writer_close (writer);
+
   keys = g_hash_table_get_keys (editor->brush_curves);
 
   for (iter = keys; iter; iter = iter->next)
@@ -1209,6 +1232,7 @@ stylus_editor_load_brush_curves (StylusEditor *editor)
   GTokenType  token;
   GList      *loaded_keys;
   GList      *loaded_iter;
+  gboolean    found_toggle_state = FALSE;
 
   if (!editor || !editor->context)
     return;
@@ -1220,6 +1244,8 @@ stylus_editor_load_brush_curves (StylusEditor *editor)
 
   if (!scanner)
     {
+      /* First time - no file exists, use default (disabled) */
+      custom_curves_enabled = FALSE;
       return;
     }
 
@@ -1229,6 +1255,8 @@ stylus_editor_load_brush_curves (StylusEditor *editor)
                                GINT_TO_POINTER (2));
   g_scanner_scope_add_symbol (scanner, 0, "curve",
                                GINT_TO_POINTER (1));
+  g_scanner_scope_add_symbol (scanner, 0, "custom-curves-enabled",
+                               GINT_TO_POINTER (3));
 
   while (g_scanner_peek_next_token (scanner) == G_TOKEN_LEFT_PAREN)
     {
@@ -1242,6 +1270,17 @@ stylus_editor_load_brush_curves (StylusEditor *editor)
       token = g_scanner_get_next_token (scanner);
 
       if (token == G_TOKEN_SYMBOL &&
+          scanner->value.v_symbol == GINT_TO_POINTER (3))  /* custom-curves-enabled */
+        {
+          gboolean enabled;
+          if (gimp_scanner_parse_boolean (scanner, &enabled))
+            {
+              custom_curves_enabled = enabled;
+              found_toggle_state = TRUE;
+            }
+          token = g_scanner_get_next_token (scanner);  /* Skip closing paren */
+        }
+      else if (token == G_TOKEN_SYMBOL &&
           scanner->value.v_symbol == GINT_TO_POINTER (0))  /* brush-curve */
         {
           gchar *brush_name = NULL;
@@ -1334,6 +1373,12 @@ stylus_editor_load_brush_curves (StylusEditor *editor)
     }
 
   gimp_scanner_unref (scanner);
+
+  /* If toggle state wasn't found in file, use default (disabled) */
+  if (!found_toggle_state)
+    {
+      custom_curves_enabled = FALSE;
+    }
 
   if (g_hash_table_size (editor->brush_curves) > 0)
     {
